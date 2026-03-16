@@ -12,10 +12,19 @@ export interface BlogPost {
 
 export interface NewsArticle {
   title: string
+  html: string
+  date: string
+  category: string
+  rank: number
+  image_thumbnail: string
   url: string
-  summary: string
-  imageUrl: string
-  publishedAt: string
+  information_density: number
+  information_density_reasoning: string
+  trend_score: number
+  trend_reasoning: string
+  utility_score: number
+  utility_reasoning: string
+  total_score: number
 }
 
 export interface GameSnapshot {

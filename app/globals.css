@@ -72,6 +72,68 @@ h1, h2, h3, h4, h5, h6 {
   text-shadow: 0 0 20px rgba(201, 168, 76, 0.3);
 }
 
+.news-content p {
+  margin-bottom: 1em;
+}
+
+.news-content h1, .news-content h2, .news-content h3 {
+  font-family: var(--font-heading), system-ui, sans-serif;
+  color: var(--color-text-primary);
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.news-content h1 { font-size: 1.5rem; }
+.news-content h2 { font-size: 1.25rem; }
+.news-content h3 { font-size: 1.1rem; }
+
+.news-content ul, .news-content ol {
+  margin-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+.news-content li {
+  margin-bottom: 0.25em;
+}
+
+.news-content a {
+  color: var(--color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.news-content blockquote {
+  border-left: 3px solid var(--color-accent-dim);
+  padding-left: 1em;
+  margin: 1em 0;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.news-content img {
+  max-width: 100%;
+  border-radius: 0.75rem;
+  margin: 1em 0;
+}
+
+.news-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.news-content th, .news-content td {
+  border: 1px solid var(--color-border);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+.news-content th {
+  background: var(--color-surface);
+  font-weight: 600;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
