@@ -38,6 +38,13 @@ function getLatestLocalDate(): string | null {
 
 const TOP_N = 10
 
+function rerank(articles: unknown): unknown {
+  if (!Array.isArray(articles)) return articles
+  return [...articles]
+    .sort((a, b) => (b.total_score as number) - (a.total_score as number))
+    .map((a, i) => ({ ...a, rank: i + 1 }))
+}
+
 function mergeAndRank(
   existing: Record<string, unknown>[],
   incoming: Record<string, unknown>[],
@@ -59,23 +66,15 @@ function mergeAndRank(
   return [...map.values()]
     .sort((a, b) => (b.total_score as number) - (a.total_score as number))
     .slice(0, TOP_N)
+    .map((a, i) => ({ ...a, rank: i + 1 }))
 }
 
-function saveArticlesByDate(articles: Record<string, unknown>[]) {
+function saveArticles(articles: Record<string, unknown>[]) {
   ensureDir()
-  const grouped: Record<string, Record<string, unknown>[]> = {}
-  for (const a of articles) {
-    const raw = (a.date as string) ?? new Date().toISOString()
-    const day = raw.slice(0, 10)
-    if (!grouped[day]) grouped[day] = []
-    grouped[day].push(a)
-  }
-  for (const [day, incoming] of Object.entries(grouped)) {
-    const existing = getArticlesForDate(day) ?? []
-    const merged = mergeAndRank(existing, incoming)
-    writeFileSync(dateFilePath(day), JSON.stringify(merged, null, 2), 'utf-8')
-  }
-  return grouped
+  const today = new Date().toISOString().slice(0, 10)
+  const existing = getArticlesForDate(today) ?? []
+  const merged = mergeAndRank(existing, articles)
+  writeFileSync(dateFilePath(today), JSON.stringify(merged, null, 2), 'utf-8')
 }
 
 export async function GET(request: Request) {
@@ -87,40 +86,40 @@ export async function GET(request: Request) {
     if (dateParam) {
       const data = await kv.get(`top_news_${dateParam}`)
       if (!data) return NextResponse.json({ error: 'No data for this date' }, { status: 404 })
-      return NextResponse.json(data)
+      return NextResponse.json(rerank(data))
     }
     const latest = await kv.get<string>('top_news_latest_date')
     if (!latest) {
       const cached = await kv.get('top_news_cache')
-      if (cached) return NextResponse.json(cached)
+      if (cached) return NextResponse.json(rerank(cached))
       return NextResponse.json({ error: 'No data yet' }, { status: 503 })
     }
     const data = await kv.get(`top_news_${latest}`)
     return data
-      ? NextResponse.json(data)
+      ? NextResponse.json(rerank(data))
       : NextResponse.json({ error: 'No data yet' }, { status: 503 })
   }
 
   if (dateParam) {
     const data = getArticlesForDate(dateParam)
-    if (data) return NextResponse.json(data)
+    if (data) return NextResponse.json(rerank(data))
     return NextResponse.json({ error: 'No data for this date' }, { status: 404 })
   }
 
   const latestDate = getLatestLocalDate()
   if (latestDate) {
     const data = getArticlesForDate(latestDate)
-    if (data) return NextResponse.json(data)
+    if (data) return NextResponse.json(rerank(data))
   }
 
   if (existsSync(LEGACY_CACHE_PATH)) {
     try {
       const legacy = JSON.parse(readFileSync(LEGACY_CACHE_PATH, 'utf-8'))
-      return NextResponse.json(legacy)
+      return NextResponse.json(rerank(legacy))
     } catch { /* ignore */ }
   }
 
-  return NextResponse.json(mockNewsArticles)
+  return NextResponse.json(rerank(mockNewsArticles))
 }
 
 export async function POST(request: Request) {
@@ -142,27 +141,19 @@ export async function POST(request: Request) {
     articles = [body]
   }
 
+  const today = new Date().toISOString().slice(0, 10)
+
   if (USE_KV) {
     const { kv } = await import('@vercel/kv')
-    const grouped: Record<string, Record<string, unknown>[]> = {}
-    for (const a of articles) {
-      const raw = (a.date as string) ?? new Date().toISOString()
-      const day = raw.slice(0, 10)
-      if (!grouped[day]) grouped[day] = []
-      grouped[day].push(a)
-    }
-    const dates = Object.keys(grouped).sort().reverse()
-    for (const [day, incoming] of Object.entries(grouped)) {
-      const existing = (await kv.get<Record<string, unknown>[]>(`top_news_${day}`)) ?? []
-      const merged = mergeAndRank(existing, incoming)
-      await kv.set(`top_news_${day}`, merged, { ex: 60 * 60 * 24 * 30 })
-    }
+    const existing = (await kv.get<Record<string, unknown>[]>(`top_news_${today}`)) ?? []
+    const merged = mergeAndRank(existing, articles)
+    await kv.set(`top_news_${today}`, merged, { ex: 60 * 60 * 24 * 30 })
     const existingDates = (await kv.get<string[]>('top_news_dates')) ?? []
-    const allDates = [...new Set([...existingDates, ...dates])].sort().reverse()
+    const allDates = [...new Set([...existingDates, today])].sort().reverse()
     await kv.set('top_news_dates', allDates)
     await kv.set('top_news_latest_date', allDates[0])
   } else {
-    saveArticlesByDate(articles)
+    saveArticles(articles)
   }
 
   return NextResponse.json({ ok: true, count: articles.length })

@@ -128,9 +128,9 @@ export default function TopNewsPage() {
   )
 
   const sorted = (Array.isArray(articles) ? articles : undefined)?.slice().sort((a, b) => {
-    if (sortMode === 'score-desc') return Number(b.total_score) - Number(a.total_score)
-    if (sortMode === 'score-asc') return Number(a.total_score) - Number(b.total_score)
-    return new Date(b.date).getTime() - new Date(a.date).getTime()
+    if (sortMode === 'score-desc') return a.rank - b.rank
+    if (sortMode === 'score-asc') return b.rank - a.rank
+    return new Date(b.date).getTime() - new Date(a.date).getTime() || a.rank - b.rank
   })
 
   const hasDates = dates && dates.length > 0
