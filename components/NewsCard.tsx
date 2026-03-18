@@ -9,10 +9,10 @@ interface Props {
   scoreRank?: number
 }
 
-const RANK_STYLES: Record<number, string> = {
-  1: 'border-yellow-400/60 shadow-yellow-400/10 shadow-md',
-  2: 'border-slate-300/50 shadow-slate-300/10 shadow-md',
-  3: 'border-amber-600/50 shadow-amber-600/10 shadow-md',
+const RANK_BORDER: Record<number, { border: string; shadow: string }> = {
+  1: { border: 'rgba(250, 204, 21, 0.7)', shadow: '0 4px 20px rgba(250, 204, 21, 0.15)' },
+  2: { border: 'rgba(203, 213, 225, 0.6)', shadow: '0 4px 20px rgba(203, 213, 225, 0.12)' },
+  3: { border: 'rgba(217, 119, 6, 0.6)', shadow: '0 4px 20px rgba(217, 119, 6, 0.12)' },
 }
 
 function stripHtml(html: string): string {
@@ -21,7 +21,7 @@ function stripHtml(html: string): string {
 
 export default function NewsCard({ article, onClick, scoreRank }: Props) {
   const preview = stripHtml(article.html)
-  const rankStyle = scoreRank ? RANK_STYLES[scoreRank] ?? '' : ''
+  const rankBorder = scoreRank ? RANK_BORDER[scoreRank] : undefined
 
   return (
     <button
@@ -29,7 +29,14 @@ export default function NewsCard({ article, onClick, scoreRank }: Props) {
       onClick={onClick}
       className="group block w-full text-left"
     >
-      <article className={`glass-card flex h-full flex-col overflow-hidden transition-all group-hover:border-accent/30 group-hover:shadow-lg group-hover:shadow-accent/5 ${rankStyle}`}>
+      <article
+        className="glass-card flex h-full flex-col overflow-hidden transition-all group-hover:shadow-lg group-hover:shadow-accent/5"
+        style={rankBorder ? {
+          borderColor: rankBorder.border,
+          borderWidth: '1.5px',
+          boxShadow: rankBorder.shadow,
+        } : undefined}
+      >
         <div className="relative h-44 overflow-hidden bg-navy-card">
           {article.image_thumbnail ? (
             <img
