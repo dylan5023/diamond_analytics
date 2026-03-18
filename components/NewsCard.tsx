@@ -6,14 +6,22 @@ import { formatDate } from '@/lib/utils'
 interface Props {
   article: NewsArticle
   onClick?: () => void
+  scoreRank?: number
+}
+
+const RANK_STYLES: Record<number, string> = {
+  1: 'border-yellow-400/60 shadow-yellow-400/10 shadow-md',
+  2: 'border-slate-300/50 shadow-slate-300/10 shadow-md',
+  3: 'border-amber-600/50 shadow-amber-600/10 shadow-md',
 }
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, '').trim()
 }
 
-export default function NewsCard({ article, onClick }: Props) {
+export default function NewsCard({ article, onClick, scoreRank }: Props) {
   const preview = stripHtml(article.html)
+  const rankStyle = scoreRank ? RANK_STYLES[scoreRank] ?? '' : ''
 
   return (
     <button
@@ -21,7 +29,7 @@ export default function NewsCard({ article, onClick }: Props) {
       onClick={onClick}
       className="group block w-full text-left"
     >
-      <article className="glass-card flex h-full flex-col overflow-hidden transition-all group-hover:border-accent/30 group-hover:shadow-lg group-hover:shadow-accent/5">
+      <article className={`glass-card flex h-full flex-col overflow-hidden transition-all group-hover:border-accent/30 group-hover:shadow-lg group-hover:shadow-accent/5 ${rankStyle}`}>
         <div className="relative h-44 overflow-hidden bg-navy-card">
           {article.image_thumbnail ? (
             <img

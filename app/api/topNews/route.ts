@@ -1,34 +1,124 @@
 import { NextResponse } from 'next/server'
 import { mockNewsArticles } from '@/lib/mock-data'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
 const USE_KV = !!process.env.KV_REST_API_URL
-const LOCAL_CACHE_PATH = join(process.cwd(), 'data', 'top-news.json')
+const NEWS_DIR = join(process.cwd(), 'data', 'top-news')
+const LEGACY_CACHE_PATH = join(process.cwd(), 'data', 'top-news.json')
 
-function getLocalCache() {
-  if (!existsSync(LOCAL_CACHE_PATH)) return null
+function ensureDir() {
+  if (!existsSync(NEWS_DIR)) mkdirSync(NEWS_DIR, { recursive: true })
+}
+
+function dateFilePath(date: string) {
+  return join(NEWS_DIR, `${date}.json`)
+}
+
+function getArticlesForDate(date: string) {
+  const fp = dateFilePath(date)
+  if (!existsSync(fp)) return null
   try {
-    return JSON.parse(readFileSync(LOCAL_CACHE_PATH, 'utf-8'))
+    return JSON.parse(readFileSync(fp, 'utf-8'))
   } catch {
     return null
   }
 }
 
-function setLocalCache(data: unknown) {
-  writeFileSync(LOCAL_CACHE_PATH, JSON.stringify(data, null, 2), 'utf-8')
+function getLatestLocalDate(): string | null {
+  ensureDir()
+  const { readdirSync } = require('fs') as typeof import('fs')
+  const files = readdirSync(NEWS_DIR)
+    .filter((f: string) => f.endsWith('.json'))
+    .map((f: string) => f.replace('.json', ''))
+    .sort()
+    .reverse()
+  return files[0] ?? null
 }
 
-export async function GET() {
+const TOP_N = 10
+
+function mergeAndRank(
+  existing: Record<string, unknown>[],
+  incoming: Record<string, unknown>[],
+): Record<string, unknown>[] {
+  const map = new Map<string, Record<string, unknown>>()
+  for (const a of existing) {
+    const key = (a.url as string) || (a.title as string)
+    if (key) map.set(key, a)
+  }
+  for (const a of incoming) {
+    const key = (a.url as string) || (a.title as string)
+    if (key) {
+      const prev = map.get(key)
+      if (!prev || (a.total_score as number) >= (prev.total_score as number)) {
+        map.set(key, a)
+      }
+    }
+  }
+  return [...map.values()]
+    .sort((a, b) => (b.total_score as number) - (a.total_score as number))
+    .slice(0, TOP_N)
+}
+
+function saveArticlesByDate(articles: Record<string, unknown>[]) {
+  ensureDir()
+  const grouped: Record<string, Record<string, unknown>[]> = {}
+  for (const a of articles) {
+    const raw = (a.date as string) ?? new Date().toISOString()
+    const day = raw.slice(0, 10)
+    if (!grouped[day]) grouped[day] = []
+    grouped[day].push(a)
+  }
+  for (const [day, incoming] of Object.entries(grouped)) {
+    const existing = getArticlesForDate(day) ?? []
+    const merged = mergeAndRank(existing, incoming)
+    writeFileSync(dateFilePath(day), JSON.stringify(merged, null, 2), 'utf-8')
+  }
+  return grouped
+}
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const dateParam = searchParams.get('date')
+
   if (USE_KV) {
     const { kv } = await import('@vercel/kv')
-    const cached = await kv.get('top_news_cache')
-    if (!cached) return NextResponse.json({ error: 'No data yet' }, { status: 503 })
-    return NextResponse.json(cached)
+    if (dateParam) {
+      const data = await kv.get(`top_news_${dateParam}`)
+      if (!data) return NextResponse.json({ error: 'No data for this date' }, { status: 404 })
+      return NextResponse.json(data)
+    }
+    const latest = await kv.get<string>('top_news_latest_date')
+    if (!latest) {
+      const cached = await kv.get('top_news_cache')
+      if (cached) return NextResponse.json(cached)
+      return NextResponse.json({ error: 'No data yet' }, { status: 503 })
+    }
+    const data = await kv.get(`top_news_${latest}`)
+    return data
+      ? NextResponse.json(data)
+      : NextResponse.json({ error: 'No data yet' }, { status: 503 })
   }
 
-  const localData = getLocalCache()
-  if (localData) return NextResponse.json(localData)
+  if (dateParam) {
+    const data = getArticlesForDate(dateParam)
+    if (data) return NextResponse.json(data)
+    return NextResponse.json({ error: 'No data for this date' }, { status: 404 })
+  }
+
+  const latestDate = getLatestLocalDate()
+  if (latestDate) {
+    const data = getArticlesForDate(latestDate)
+    if (data) return NextResponse.json(data)
+  }
+
+  if (existsSync(LEGACY_CACHE_PATH)) {
+    try {
+      const legacy = JSON.parse(readFileSync(LEGACY_CACHE_PATH, 'utf-8'))
+      return NextResponse.json(legacy)
+    } catch { /* ignore */ }
+  }
 
   return NextResponse.json(mockNewsArticles)
 }
@@ -41,7 +131,7 @@ export async function POST(request: Request) {
 
   const body = await request.json()
 
-  let articles: unknown[]
+  let articles: Record<string, unknown>[]
   if (Array.isArray(body) && body.length === 1 && Array.isArray(body[0]?.data)) {
     articles = body[0].data
   } else if (Array.isArray(body)) {
@@ -54,9 +144,25 @@ export async function POST(request: Request) {
 
   if (USE_KV) {
     const { kv } = await import('@vercel/kv')
-    await kv.set('top_news_cache', JSON.stringify(articles), { ex: 21600 })
+    const grouped: Record<string, Record<string, unknown>[]> = {}
+    for (const a of articles) {
+      const raw = (a.date as string) ?? new Date().toISOString()
+      const day = raw.slice(0, 10)
+      if (!grouped[day]) grouped[day] = []
+      grouped[day].push(a)
+    }
+    const dates = Object.keys(grouped).sort().reverse()
+    for (const [day, incoming] of Object.entries(grouped)) {
+      const existing = (await kv.get<Record<string, unknown>[]>(`top_news_${day}`)) ?? []
+      const merged = mergeAndRank(existing, incoming)
+      await kv.set(`top_news_${day}`, merged, { ex: 60 * 60 * 24 * 30 })
+    }
+    const existingDates = (await kv.get<string[]>('top_news_dates')) ?? []
+    const allDates = [...new Set([...existingDates, ...dates])].sort().reverse()
+    await kv.set('top_news_dates', allDates)
+    await kv.set('top_news_latest_date', allDates[0])
   } else {
-    setLocalCache(articles)
+    saveArticlesByDate(articles)
   }
 
   return NextResponse.json({ ok: true, count: articles.length })

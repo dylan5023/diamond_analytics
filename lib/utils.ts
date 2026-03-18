@@ -17,4 +17,8 @@ export function truncate(str: string, maxLength: number): string {
   return str.slice(0, maxLength) + '...'
 }
 
-export const fetcher = (url: string) => fetch(url).then(res => res.json())
+export const fetcher = (url: string) =>
+  fetch(url).then(res => {
+    if (!res.ok) throw new Error(`API error: ${res.status}`)
+    return res.json()
+  })
