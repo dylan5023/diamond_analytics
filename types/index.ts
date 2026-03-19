@@ -28,7 +28,7 @@ export interface NewsArticle {
 }
 
 export interface GameSnapshot {
-  id: number
+  id?: number
   game_pk: number
   home_team: string
   away_team: string
@@ -38,6 +38,21 @@ export interface GameSnapshot {
   inning_half: string
   status: string
   win_probability: number
+  home_wins?: number
+  home_losses?: number
+  away_wins?: number
+  away_losses?: number
+  home_pitcher?: string | null
+  away_pitcher?: string | null
+  home_era?: number | null
+  away_era?: number | null
+  home_whip?: number | null
+  away_whip?: number | null
+  home_win_pct?: number | null
+  away_win_pct?: number | null
+  win_pct_diff?: number | null
+  score_diff?: number | null
+  game_date?: string | null
   updated_at: string
 }
 
