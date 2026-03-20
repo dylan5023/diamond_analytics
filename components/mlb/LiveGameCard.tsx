@@ -12,6 +12,12 @@ function recordStr(wins?: number, losses?: number): string {
   return `${wins}-${losses}`
 }
 
+function formatGameDate(dateStr?: string | null): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T12:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 interface Props {
   game: GameSnapshot
 }
@@ -32,6 +38,9 @@ export default function LiveGameCard({ game }: Props) {
         <div className="flex items-center gap-2">
           <span className="inline-block h-2 w-2 rounded-full bg-[#22c55e] animate-pulse" />
           <span className="text-xs font-semibold text-[#22c55e]">LIVE</span>
+          {game.game_date && (
+            <span className="text-xs text-[#94a3b8]">· {formatGameDate(game.game_date)}</span>
+          )}
         </div>
         <span className="text-xs font-medium text-[#94a3b8]">
           {inningLabel(game.inning_half, game.inning)}

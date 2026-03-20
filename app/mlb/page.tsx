@@ -6,6 +6,19 @@ import type { GameSnapshot } from '@/types'
 import { FadeIn, FadeInOnScroll, StaggerContainer, StaggerItem } from '@/components/MotionWrapper'
 import LiveGameCard from '@/components/mlb/LiveGameCard'
 import ScheduledGameCard from '@/components/mlb/ScheduledGameCard'
+import FinalGameCard from '@/components/mlb/FinalGameCard'
+
+const VANCOUVER_TZ = 'America/Vancouver'
+
+function getTodayDateString(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: VANCOUVER_TZ }) // YYYY-MM-DD
+}
+
+function getTomorrowDateString(): string {
+  const now = new Date()
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
+  return tomorrow.toLocaleDateString('en-CA', { timeZone: VANCOUVER_TZ })
+}
 
 export default function MLBPage() {
   const [games, setGames] = useState<GameSnapshot[]>([])
@@ -14,11 +27,12 @@ export default function MLBPage() {
 
   const fetchGames = async () => {
     try {
-      // 2026-03-19 해당: game_date 또는 updated_at 기준
+      const today = getTodayDateString()
+      const tomorrow = getTomorrowDateString()
       const { data, error: fetchError } = await supabase
         .from('game_snapshots')
         .select('*')
-        .or('game_date.eq.2026-03-19,and(updated_at.gte.2026-03-19T00:00:00,updated_at.lt.2026-03-20T00:00:00)')
+        .or(`game_date.eq.${today},and(updated_at.gte.${today}T00:00:00,updated_at.lt.${tomorrow}T00:00:00)`)
         .order('updated_at', { ascending: false })
 
       if (fetchError) throw fetchError
@@ -39,6 +53,7 @@ export default function MLBPage() {
 
   const liveGames = games.filter(g => g.status === 'Live')
   const scheduledGames = games.filter(g => g.status === 'Scheduled')
+  const finalGames = games.filter(g => g.status === 'Final')
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#0f1117' }}>
@@ -117,12 +132,25 @@ export default function MLBPage() {
               </FadeInOnScroll>
             )}
 
-            {liveGames.length === 0 && scheduledGames.length === 0 && (
+            {finalGames.length > 0 && (
+              <FadeInOnScroll>
+                <h2 className="mb-4 font-heading text-xl font-bold text-white">Final</h2>
+                <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {finalGames.map(game => (
+                    <StaggerItem key={game.game_pk}>
+                      <FinalGameCard game={game} />
+                    </StaggerItem>
+                  ))}
+                </StaggerContainer>
+              </FadeInOnScroll>
+            )}
+
+            {liveGames.length === 0 && scheduledGames.length === 0 && finalGames.length === 0 && (
               <div
                 className="rounded-xl p-12 text-center"
                 style={{ backgroundColor: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)' }}
               >
-                <p className="text-[#94a3b8]">No games for 2026-03-19.</p>
+                <p className="text-[#94a3b8]">No games for today.</p>
               </div>
             )}
           </>

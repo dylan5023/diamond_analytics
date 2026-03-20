@@ -7,6 +7,12 @@ function recordStr(wins?: number, losses?: number): string {
   return `${wins}-${losses}`
 }
 
+function formatGameDate(dateStr?: string | null): string {
+  if (!dateStr) return ''
+  const d = new Date(dateStr + 'T12:00:00')
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 interface Props {
   game: GameSnapshot
 }
@@ -24,7 +30,12 @@ export default function FinalGameCard({ game }: Props) {
       }}
     >
       <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-3">
-        <span className="text-xs font-medium text-[#94a3b8]">FINAL</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-medium text-[#94a3b8]">FINAL</span>
+          {game.game_date && (
+            <span className="text-xs text-[#94a3b8]">· {formatGameDate(game.game_date)}</span>
+          )}
+        </div>
       </div>
 
       <div className="px-5 py-4">
