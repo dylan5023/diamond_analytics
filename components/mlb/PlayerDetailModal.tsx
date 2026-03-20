@@ -1,0 +1,532 @@
+'use client'
+
+import { useEffect, useState, useMemo } from 'react'
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts'
+import { supabase } from '@/lib/supabase'
+import {
+  getLeagueHittingAverages,
+  getLeaguePitchingAverages,
+  type LeagueHittingAverages,
+  type LeaguePitchingAverages,
+} from '@/lib/mlb-league-avg'
+import type { TeamRosterRow, PlayerSeasonStatRow, GameBoxscoreRow } from '@/types/mlb'
+import MlbModal from './MlbModal'
+
+interface Props {
+  playerId: number
+  onClose: () => void
+}
+
+function formatShortDate(iso?: string | null) {
+  if (!iso) return ''
+  const d = new Date(iso.includes('T') ? iso : `${iso}T12:00:00`)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+export default function PlayerDetailModal({ playerId, onClose }: Props) {
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [roster, setRoster] = useState<TeamRosterRow | null>(null)
+  const [hitting2025, setHitting2025] = useState<PlayerSeasonStatRow | null>(null)
+  const [hitting2026Stats, setHitting2026Stats] = useState<PlayerSeasonStatRow | null>(null)
+  const [pitching2025, setPitching2025] = useState<PlayerSeasonStatRow | null>(null)
+  const [pitching2026Stats, setPitching2026Stats] = useState<PlayerSeasonStatRow | null>(null)
+  const [recentGames, setRecentGames] = useState<GameBoxscoreRow[]>([])
+  const [leagueHit2025, setLeagueHit2025] = useState<LeagueHittingAverages | null>(null)
+  const [leaguePit2025, setLeaguePit2025] = useState<LeaguePitchingAverages | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      setLoading(true)
+      setError(null)
+      setLeagueHit2025(null)
+      setLeaguePit2025(null)
+      try {
+        const [rosterRes, statsRes, box2026Res, leagueHit, leaguePit] = await Promise.all([
+          supabase.from('team_rosters').select('*').eq('player_id', playerId).limit(1).maybeSingle(),
+          supabase
+            .from('player_stats')
+            .select('*')
+            .eq('player_id', playerId)
+            .in('season', [2025, 2026])
+            .order('season', { ascending: false }),
+          supabase
+            .from('game_boxscores')
+            .select('*')
+            .eq('player_id', playerId)
+            .gte('game_date', '2026-01-01')
+            .lt('game_date', '2027-01-01')
+            .order('game_date', { ascending: false }),
+          getLeagueHittingAverages(supabase, 2025).catch(() => null),
+          getLeaguePitchingAverages(supabase, 2025).catch(() => null),
+        ])
+
+        if (rosterRes.error) throw rosterRes.error
+        if (statsRes.error) throw statsRes.error
+        if (box2026Res.error) throw box2026Res.error
+        if (cancelled) return
+
+        setLeagueHit2025(leagueHit)
+        setLeaguePit2025(leaguePit)
+
+        setRoster((rosterRes.data ?? null) as TeamRosterRow | null)
+
+        const statRows = (statsRes.data ?? []) as PlayerSeasonStatRow[]
+        let h25: PlayerSeasonStatRow | null = null
+        let h26: PlayerSeasonStatRow | null = null
+        let p25: PlayerSeasonStatRow | null = null
+        let p26: PlayerSeasonStatRow | null = null
+        for (const r of statRows) {
+          if (r.stat_group === 'hitting' && r.season === 2025 && !h25) h25 = r
+          if (r.stat_group === 'hitting' && r.season === 2026 && !h26) h26 = r
+          if (r.stat_group === 'pitching' && r.season === 2025 && !p25) p25 = r
+          if (r.stat_group === 'pitching' && r.season === 2026 && !p26) p26 = r
+        }
+        setHitting2025(h25)
+        setHitting2026Stats(h26)
+        setPitching2025(p25)
+        setPitching2026Stats(p26)
+
+        setRecentGames((box2026Res.data ?? []) as GameBoxscoreRow[])
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [playerId])
+
+  /** 2026 game_boxscores rows (avoid name clash with hitting2026Stats from player_stats) */
+  const hittingBox2026 = useMemo(
+    () => recentGames.filter(g => g.stat_group === 'hitting'),
+    [recentGames]
+  )
+  const pitchingBox2026 = useMemo(
+    () => recentGames.filter(g => g.stat_group === 'pitching'),
+    [recentGames]
+  )
+
+  const chartHitting = useMemo(() => {
+    return hittingBox2026
+      .slice(0, 10)
+      .slice()
+      .reverse()
+      .map(g => ({
+        label: formatShortDate(g.game_date),
+        hits: g.hits ?? 0,
+        hr: g.home_runs ?? 0,
+      }))
+  }, [hittingBox2026])
+
+  const chartPitching = useMemo(() => {
+    return pitchingBox2026
+      .slice(0, 10)
+      .slice()
+      .reverse()
+      .map(g => ({
+        label: formatShortDate(g.game_date),
+        ip: typeof g.innings_pitched === 'number' ? g.innings_pitched : Number(g.innings_pitched) || 0,
+        k: g.strikeouts ?? 0,
+      }))
+  }, [pitchingBox2026])
+
+  /** Show chart with any 2026 games; message only when there are zero rows */
+  const showHittingChart = chartHitting.length > 0
+  const showPitchingChart = chartPitching.length > 0
+  const showHittingAccumulatingMsg = hittingBox2026.length === 0
+  const showPitchingAccumulatingMsg = pitchingBox2026.length === 0
+
+  const title = roster?.full_name ?? `Player ${playerId}`
+
+  return (
+    <MlbModal title={title} onClose={onClose} wide stacked>
+      {loading && (
+        <div className="space-y-4">
+          <div className="h-24 animate-pulse rounded-lg bg-white/10" />
+          <div className="h-32 animate-pulse rounded-lg bg-white/10" />
+          <div className="h-48 animate-pulse rounded-lg bg-white/10" />
+        </div>
+      )}
+      {error && <p className="text-sm text-red-400">{error}</p>}
+      {!loading && !error && (
+        <div className="space-y-10">
+          {roster && (
+            <section className="rounded-2xl border border-white/[0.1] bg-[#0f1117] p-5 sm:p-6">
+              <h3 className="mb-1 font-heading text-xs font-semibold uppercase tracking-[0.2em] text-[#94a3b8]">
+                Profile
+              </h3>
+              <p className="font-heading text-2xl font-bold tracking-tight text-white">{roster.full_name}</p>
+              <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div className="border-b border-white/[0.06] pb-3 sm:border-0 sm:pb-0">
+                  <dt className="text-xs font-medium text-slate-500">Team</dt>
+                  <dd className="mt-1 text-base font-medium text-slate-100">
+                    {roster.team_abbr ?? roster.team_name ?? '—'}
+                  </dd>
+                </div>
+                <div className="border-b border-white/[0.06] pb-3 sm:border-0 sm:pb-0">
+                  <dt className="text-xs font-medium text-slate-500">Position</dt>
+                  <dd className="mt-1 text-base font-medium text-slate-100">{roster.position ?? '—'}</dd>
+                </div>
+                <div className="border-b border-white/[0.06] pb-3 sm:border-0 sm:pb-0">
+                  <dt className="text-xs font-medium text-slate-500">Jersey</dt>
+                  <dd className="mt-1 text-base font-medium text-slate-100">#{roster.jersey_number ?? '—'}</dd>
+                </div>
+                <div className="border-b border-white/[0.06] pb-3 sm:border-0 sm:pb-0">
+                  <dt className="text-xs font-medium text-slate-500">Bats / Throws</dt>
+                  <dd className="mt-1 text-base font-medium text-slate-100">
+                    {roster.bats ?? '—'} / {roster.throws ?? '—'}
+                  </dd>
+                </div>
+                <div className="border-b border-white/[0.06] pb-3 sm:border-0 sm:pb-0">
+                  <dt className="text-xs font-medium text-slate-500">Born</dt>
+                  <dd className="mt-1 text-base font-medium text-slate-100">
+                    {roster.birth_date
+                      ? new Date(roster.birth_date).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                        })
+                      : '—'}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-medium text-slate-500">Height / Weight</dt>
+                  <dd className="mt-1 text-base font-medium text-slate-100">
+                    {roster.height ?? '—'} · {roster.weight ?? '—'}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          )}
+
+          {(hitting2025 || hitting2026Stats) && (
+            <section>
+              <h3 className="font-heading text-lg font-semibold text-white">Season hitting</h3>
+              <p className="mt-1 text-sm text-slate-400">Full-year stats from the league database.</p>
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                {hitting2025 && (
+                  <div>
+                    <p className="mb-3 text-sm font-semibold text-[#facc15]">2025 · Full season</p>
+                    {leagueHit2025 && (
+                      <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                        Compared to 2025 league rates from this database (all player rows; AVG/SLG
+                        weighted by AB; OBP uses (H+BB)/(AB+BB)).
+                      </p>
+                    )}
+                    <div
+                      className="grid grid-cols-2 gap-4 rounded-xl border border-white/[0.1] bg-[#0f1117] p-5 sm:grid-cols-3"
+                    >
+                      <StatVsLeague
+                        label="AVG"
+                        player={hitting2025.avg}
+                        league={leagueHit2025?.avg}
+                        higherIsBetter
+                      />
+                      <StatVsLeague
+                        label="OBP"
+                        player={hitting2025.obp}
+                        league={leagueHit2025?.obp}
+                        higherIsBetter
+                      />
+                      <StatVsLeague
+                        label="SLG"
+                        player={hitting2025.slg}
+                        league={leagueHit2025?.slg}
+                        higherIsBetter
+                      />
+                      <StatVsLeague
+                        label="OPS"
+                        player={hitting2025.ops}
+                        league={leagueHit2025?.ops}
+                        higherIsBetter
+                        showOpsIndex
+                      />
+                      <Stat label="HR" value={hitting2025.home_runs ?? '—'} />
+                      <Stat label="RBI" value={hitting2025.rbi ?? '—'} />
+                    </div>
+                  </div>
+                )}
+                {hitting2026Stats && (
+                  <div>
+                    <p className="mb-3 text-sm font-semibold text-[#facc15]">2026 · Season to date</p>
+                    <div
+                      className="grid grid-cols-2 gap-4 rounded-xl border border-white/[0.1] bg-[#0f1117] p-5 sm:grid-cols-3"
+                    >
+                      <Stat label="AVG" value={fmt2(hitting2026Stats.avg)} />
+                      <Stat label="OBP" value={fmt2(hitting2026Stats.obp)} />
+                      <Stat label="SLG" value={fmt2(hitting2026Stats.slg)} />
+                      <Stat label="OPS" value={fmt2(hitting2026Stats.ops)} />
+                      <Stat label="HR" value={hitting2026Stats.home_runs ?? '—'} />
+                      <Stat label="RBI" value={hitting2026Stats.rbi ?? '—'} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {(pitching2025 || pitching2026Stats) && (
+            <section>
+              <h3 className="font-heading text-lg font-semibold text-white">Season pitching</h3>
+              <p className="mt-1 text-sm text-slate-400">Full-year stats from the league database.</p>
+              <div className="mt-5 grid gap-5 md:grid-cols-2">
+                {pitching2025 && (
+                  <div>
+                    <p className="mb-3 text-sm font-semibold text-[#facc15]">2025 · Full season</p>
+                    {leaguePit2025 && (
+                      <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                        Compared to 2025 league rates from this database (ERA / WHIP weighted by IP
+                        across all pitcher rows).
+                      </p>
+                    )}
+                    <div
+                      className="grid grid-cols-2 gap-4 rounded-xl border border-white/[0.1] bg-[#0f1117] p-5 sm:grid-cols-3"
+                    >
+                      <StatVsLeague
+                        label="ERA"
+                        player={pitching2025.era}
+                        league={leaguePit2025?.era}
+                        higherIsBetter={false}
+                      />
+                      <StatVsLeague
+                        label="WHIP"
+                        player={pitching2025.whip}
+                        league={leaguePit2025?.whip}
+                        higherIsBetter={false}
+                      />
+                      <Stat label="W" value={pitching2025.wins ?? '—'} />
+                      <Stat label="L" value={pitching2025.losses ?? '—'} />
+                      <Stat label="K" value={pitching2025.strikeouts ?? '—'} />
+                      <Stat label="BB" value={pitching2025.bb ?? pitching2025.walks ?? '—'} />
+                    </div>
+                  </div>
+                )}
+                {pitching2026Stats && (
+                  <div>
+                    <p className="mb-3 text-sm font-semibold text-[#facc15]">2026 · Season to date</p>
+                    <div
+                      className="grid grid-cols-2 gap-4 rounded-xl border border-white/[0.1] bg-[#0f1117] p-5 sm:grid-cols-3"
+                    >
+                      <Stat label="ERA" value={fmt2(pitching2026Stats.era)} />
+                      <Stat label="WHIP" value={fmt2(pitching2026Stats.whip)} />
+                      <Stat label="W" value={pitching2026Stats.wins ?? '—'} />
+                      <Stat label="L" value={pitching2026Stats.losses ?? '—'} />
+                      <Stat label="K" value={pitching2026Stats.strikeouts ?? '—'} />
+                      <Stat label="BB" value={pitching2026Stats.bb ?? pitching2026Stats.walks ?? '—'} />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
+          {!hitting2025 && !hitting2026Stats && !pitching2025 && !pitching2026Stats && (
+            <p className="rounded-xl border border-dashed border-white/10 bg-[#0f1117]/80 px-4 py-3 text-sm text-slate-400">
+              No season stats in the database for 2025–2026 yet.
+            </p>
+          )}
+
+          {(hitting2025 || hitting2026Stats || hittingBox2026.length > 0) && (
+            <section>
+              <h3 className="font-heading text-lg font-semibold text-white">2026 · Game trends (hitting)</h3>
+              <p className="mt-1 text-sm text-slate-400">Hits and home runs by game (up to last 10).</p>
+              {showHittingAccumulatingMsg && (
+                <p className="mt-4 rounded-xl border border-white/[0.1] bg-[#0f1117] px-4 py-4 text-sm leading-relaxed text-slate-300">
+                  No 2026 game rows yet — numbers will fill in as the season progresses.
+                </p>
+              )}
+              {showHittingChart && (
+                <div className="mt-5 h-72 w-full rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartHitting} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.6} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={{ stroke: '#475569' }}
+                      />
+                      <YAxis
+                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={{ stroke: '#475569' }}
+                        width={36}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          padding: '12px 14px',
+                        }}
+                        labelStyle={{ color: '#e2e8f0', marginBottom: 6 }}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: 16, fontSize: 14, color: '#e2e8f0' }} />
+                      <Line
+                        type="monotone"
+                        dataKey="hits"
+                        stroke="#facc15"
+                        name="Hits"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, strokeWidth: 0 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="hr"
+                        stroke="#94a3b8"
+                        name="HR"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, strokeWidth: 0 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </section>
+          )}
+
+          {(pitching2025 || pitching2026Stats || pitchingBox2026.length > 0) && (
+            <section>
+              <h3 className="font-heading text-lg font-semibold text-white">2026 · Game trends (pitching)</h3>
+              <p className="mt-1 text-sm text-slate-400">Innings pitched and strikeouts by game (up to last 10).</p>
+              {showPitchingAccumulatingMsg && (
+                <p className="mt-4 rounded-xl border border-white/[0.1] bg-[#0f1117] px-4 py-4 text-sm leading-relaxed text-slate-300">
+                  No 2026 game rows yet — numbers will fill in as the season progresses.
+                </p>
+              )}
+              {showPitchingChart && (
+                <div className="mt-5 h-72 w-full rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chartPitching} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.6} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={{ stroke: '#475569' }}
+                      />
+                      <YAxis
+                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={{ stroke: '#475569' }}
+                        width={36}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid rgba(255,255,255,0.12)',
+                          borderRadius: '12px',
+                          fontSize: '14px',
+                          padding: '12px 14px',
+                        }}
+                        labelStyle={{ color: '#e2e8f0', marginBottom: 6 }}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: 16, fontSize: 14, color: '#e2e8f0' }} />
+                      <Line
+                        type="monotone"
+                        dataKey="ip"
+                        stroke="#facc15"
+                        name="IP"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, strokeWidth: 0 }}
+                        activeDot={{ r: 6 }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="k"
+                        stroke="#94a3b8"
+                        name="Strikeouts"
+                        strokeWidth={2.5}
+                        dot={{ r: 4, strokeWidth: 0 }}
+                        activeDot={{ r: 6 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </section>
+          )}
+        </div>
+      )}
+    </MlbModal>
+  )
+}
+
+function Stat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1.5 font-heading text-2xl font-bold tabular-nums tracking-tight text-white">{value}</p>
+    </div>
+  )
+}
+
+function StatVsLeague({
+  label,
+  player,
+  league,
+  higherIsBetter,
+  showOpsIndex,
+}: {
+  label: string
+  player: number | null | undefined
+  league: number | null | undefined
+  higherIsBetter: boolean
+  showOpsIndex?: boolean
+}) {
+  const p =
+    player != null && typeof player === 'number' && !Number.isNaN(player) ? player : null
+  const lg = league != null && typeof league === 'number' && !Number.isNaN(league) ? league : null
+  const showCmp = p != null && lg != null
+  const diff = showCmp ? p - lg : null
+  const good =
+    diff == null ? null : higherIsBetter ? diff > 0 : diff < 0
+  const diffText =
+    diff == null ? null : `${diff >= 0 ? '+' : ''}${diff.toFixed(3)}`
+
+  const opsIndex =
+    showOpsIndex && showCmp && lg > 0 ? Math.round((p / lg) * 100) : null
+
+  return (
+    <div className="min-w-0">
+      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1.5 font-heading text-2xl font-bold tabular-nums tracking-tight text-white">
+        {fmt2(player)}
+      </p>
+      {showCmp && (
+        <p
+          className={`mt-1 text-xs tabular-nums ${
+            good ? 'text-emerald-400' : diff === 0 ? 'text-slate-500' : 'text-rose-400'
+          }`}
+        >
+          Lg {fmt2(lg)} · {diffText}
+        </p>
+      )}
+      {opsIndex != null && (
+        <p className="mt-0.5 text-[11px] text-slate-500">vs Lg OPS index {opsIndex} (100 = avg)</p>
+      )}
+    </div>
+  )
+}
+
+function fmt2(n: number | null | undefined) {
+  if (n == null || Number.isNaN(n)) return '—'
+  return n.toFixed(3)
+}

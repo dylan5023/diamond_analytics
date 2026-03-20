@@ -54,21 +54,56 @@ export interface GameSnapshot {
   score_diff?: number | null
   game_date?: string | null
   updated_at: string
+  home_team_id?: number | null
+  away_team_id?: number | null
 }
 
 export interface PlayerStats {
   id: number
   player_id: number
   full_name: string
+  /** Usually team_abbr from team_rosters */
   team: string
+  /** Full club name when available */
+  team_name?: string | null
   position: string
   avg: number
+  /** Hitting (optional; from player_stats when joined) */
+  obp?: number | null
+  slg?: number | null
+  hits?: number | null
   home_runs: number
   rbi: number
   ops: number
   era: number | null
   whip: number | null
+  /** Pitching (optional) */
+  wins?: number | null
+  losses?: number | null
   updated_at: string
+  /** Hitting qualifiers / display */
+  at_bats?: number | null
+  /** Pitching qualifiers / display */
+  innings_pitched?: number | null
+  strikeouts?: number | null
+}
+
+/** /dashboard — 2025 qualified leaderboards from player_stats + team_rosters */
+export interface DashboardLeaderboards {
+  season: number
+  minHitterAb: number
+  minPitcherIp: number
+  topN: number
+  hitters: {
+    byHomeRuns: PlayerStats[]
+    byAvg: PlayerStats[]
+    byOps: PlayerStats[]
+  }
+  pitchers: {
+    byEra: PlayerStats[]
+    byStrikeouts: PlayerStats[]
+    byWhip: PlayerStats[]
+  }
 }
 
 export interface WordFrequency {
@@ -76,7 +111,74 @@ export interface WordFrequency {
   value: number
 }
 
+export interface PlayerSearchResult {
+  player_id: number
+  full_name: string
+  team: string
+  position: string
+  hitting: {
+    avg: number
+    ops: number
+    home_runs: number
+    rbi: number
+  } | null
+  pitching: {
+    era: number | null
+    whip: number | null
+  } | null
+}
+
+/** Season snapshot for dashboard charts (from `player_stats` + `team_rosters`). */
+export interface PlayerChartProfile {
+  season: number
+  full_name: string
+  team: string
+  position: string
+  hitting: {
+    avg: number
+    obp: number | null
+    slg: number | null
+    ops: number
+    home_runs: number
+    rbi: number
+    hits: number | null
+    at_bats: number | null
+  } | null
+  pitching: {
+    era: number | null
+    whip: number | null
+    strikeouts: number | null
+    innings_pitched: number | null
+    wins: number | null
+    losses: number | null
+  } | null
+}
+
+/** Qualified-player season means for chart comparison (green line). */
+export interface SeasonLeagueAverages {
+  hitting: {
+    avg: number
+    obp: number
+    slg: number
+    ops: number
+    home_runs: number
+    rbi: number
+    hits: number
+    at_bats: number
+  } | null
+  pitching: {
+    era: number
+    whip: number
+    strikeouts: number
+    innings_pitched: number
+    wins: number
+    losses: number
+  } | null
+}
+
 export interface DashboardData {
   games: GameSnapshot[]
-  players: PlayerStats[]
+  leaderboards: DashboardLeaderboards
+  /** Deduped union of leaderboard rows for legacy consumers */
+  players?: PlayerStats[]
 }

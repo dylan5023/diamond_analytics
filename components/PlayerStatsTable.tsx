@@ -4,18 +4,16 @@ import { useState } from 'react'
 import type { PlayerStats } from '@/types'
 
 interface Props {
-  players: PlayerStats[]
+  hitters: PlayerStats[]
+  pitchers: PlayerStats[]
 }
 
 type SortKey = 'avg' | 'home_runs' | 'rbi' | 'ops' | 'era' | 'whip'
 
-export default function PlayerStatsTable({ players }: Props) {
+export default function PlayerStatsTable({ hitters, pitchers }: Props) {
   const [tab, setTab] = useState<'hitters' | 'pitchers'>('hitters')
   const [sortKey, setSortKey] = useState<SortKey>('ops')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
-
-  const hitters = players.filter(p => p.position !== 'P')
-  const pitchers = players.filter(p => p.position === 'P')
 
   const currentPlayers = tab === 'hitters' ? hitters : pitchers
 
@@ -130,7 +128,7 @@ export default function PlayerStatsTable({ players }: Props) {
                   </>
                 ) : (
                   <>
-                    <td className="px-3 py-3 text-right font-heading text-sm font-bold tabular-nums text-accent">{player.era?.toFixed(2) ?? '-'}</td>
+                    <td className="px-3 py-3 text-right font-heading text-sm font-bold tabular-nums text-accent">{player.era?.toFixed(3) ?? '-'}</td>
                     <td className="px-3 py-3 text-right font-heading text-sm tabular-nums text-text-primary">{player.whip?.toFixed(3) ?? '-'}</td>
                   </>
                 )}

@@ -7,6 +7,8 @@ import { FadeIn, FadeInOnScroll, StaggerContainer, StaggerItem } from '@/compone
 import LiveGameCard from '@/components/mlb/LiveGameCard'
 import ScheduledGameCard from '@/components/mlb/ScheduledGameCard'
 import FinalGameCard from '@/components/mlb/FinalGameCard'
+import GameDetailModal from '@/components/mlb/GameDetailModal'
+import PlayerDetailModal from '@/components/mlb/PlayerDetailModal'
 
 const VANCOUVER_TZ = 'America/Vancouver'
 
@@ -24,6 +26,8 @@ export default function MLBPage() {
   const [games, setGames] = useState<GameSnapshot[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedGame, setSelectedGame] = useState<GameSnapshot | null>(null)
+  const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
 
   const fetchGames = async () => {
     try {
@@ -110,7 +114,7 @@ export default function MLBPage() {
                 <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {liveGames.map(game => (
                     <StaggerItem key={game.game_pk}>
-                      <LiveGameCard game={game} />
+                      <LiveGameCard game={game} onOpen={() => setSelectedGame(game)} />
                     </StaggerItem>
                   ))}
                 </StaggerContainer>
@@ -125,7 +129,7 @@ export default function MLBPage() {
                 <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {scheduledGames.map(game => (
                     <StaggerItem key={game.game_pk}>
-                      <ScheduledGameCard game={game} />
+                      <ScheduledGameCard game={game} onOpen={() => setSelectedGame(game)} />
                     </StaggerItem>
                   ))}
                 </StaggerContainer>
@@ -138,7 +142,7 @@ export default function MLBPage() {
                 <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
                   {finalGames.map(game => (
                     <StaggerItem key={game.game_pk}>
-                      <FinalGameCard game={game} />
+                      <FinalGameCard game={game} onOpen={() => setSelectedGame(game)} />
                     </StaggerItem>
                   ))}
                 </StaggerContainer>
@@ -156,6 +160,23 @@ export default function MLBPage() {
           </>
         )}
       </div>
+
+      {selectedGame && (
+        <GameDetailModal
+          game={selectedGame}
+          onClose={() => {
+            setSelectedGame(null)
+            setSelectedPlayerId(null)
+          }}
+          onPlayerClick={id => setSelectedPlayerId(id)}
+        />
+      )}
+      {selectedPlayerId != null && (
+        <PlayerDetailModal
+          playerId={selectedPlayerId}
+          onClose={() => setSelectedPlayerId(null)}
+        />
+      )}
     </div>
   )
 }

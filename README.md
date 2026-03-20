@@ -91,10 +91,15 @@ Create a `.env.local` file in the project root:
 NOTION_API_KEY=
 NOTION_BLOG_DATABASE_ID=
 
-# Vercel Postgres
+# Vercel Postgres (dashboard API tries this first when set)
 POSTGRES_URL=
 POSTGRES_PRISMA_URL=
 POSTGRES_URL_NON_POOLING=
+
+# Supabase (e.g. MLB page — client-side). Dashboard `/api/realTimeDash` falls back here when Postgres returns no leaderboard rows, or set:
+# DASHBOARD_PREFER_SUPABASE=1
+# NEXT_PUBLIC_SUPABASE_URL=
+# NEXT_PUBLIC_SUPABASE_ANON_KEY=
 
 # Vercel KV
 KV_URL=

@@ -1,4 +1,4 @@
-import type { BlogPost, NewsArticle, GameSnapshot, PlayerStats, WordFrequency } from '@/types'
+import type { BlogPost, NewsArticle, WordFrequency } from '@/types'
 
 export const mockBlogPosts: BlogPost[] = [
   {
@@ -150,89 +150,6 @@ export const mockNewsArticles: NewsArticle[] = [
     utility_reasoning: 'Useful for matchup projections.',
     total_score: 12,
   },
-]
-
-export const mockGameSnapshots: GameSnapshot[] = [
-  {
-    id: 1,
-    game_pk: 745001,
-    home_team: 'LAD',
-    away_team: 'SFG',
-    home_score: 5,
-    away_score: 3,
-    inning: 7,
-    inning_half: 'Top',
-    status: 'Live',
-    win_probability: 0.78,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 2,
-    game_pk: 745002,
-    home_team: 'NYY',
-    away_team: 'BOS',
-    home_score: 2,
-    away_score: 2,
-    inning: 5,
-    inning_half: 'Bottom',
-    status: 'Live',
-    win_probability: 0.52,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 3,
-    game_pk: 745003,
-    home_team: 'HOU',
-    away_team: 'TEX',
-    home_score: 0,
-    away_score: 0,
-    inning: 1,
-    inning_half: 'Top',
-    status: 'Live',
-    win_probability: 0.55,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 4,
-    game_pk: 745004,
-    home_team: 'ATL',
-    away_team: 'NYM',
-    home_score: 7,
-    away_score: 4,
-    inning: 9,
-    inning_half: 'Bottom',
-    status: 'Live',
-    win_probability: 0.92,
-    updated_at: new Date().toISOString(),
-  },
-  {
-    id: 5,
-    game_pk: 745005,
-    home_team: 'CHC',
-    away_team: 'STL',
-    home_score: 0,
-    away_score: 0,
-    inning: 0,
-    inning_half: '',
-    status: 'Scheduled',
-    win_probability: 0.50,
-    updated_at: new Date().toISOString(),
-  },
-]
-
-export const mockPlayerStats: PlayerStats[] = [
-  { id: 1, player_id: 660271, full_name: 'Shohei Ohtani', team: 'LAD', position: 'DH', avg: 0.312, home_runs: 4, rbi: 12, ops: 1.045, era: null, whip: null, updated_at: new Date().toISOString() },
-  { id: 2, player_id: 665489, full_name: 'Juan Soto', team: 'NYM', position: 'RF', avg: 0.298, home_runs: 3, rbi: 10, ops: 0.998, era: null, whip: null, updated_at: new Date().toISOString() },
-  { id: 3, player_id: 592450, full_name: 'Aaron Judge', team: 'NYY', position: 'CF', avg: 0.285, home_runs: 5, rbi: 14, ops: 0.987, era: null, whip: null, updated_at: new Date().toISOString() },
-  { id: 4, player_id: 668939, full_name: 'Ronald Acuña Jr.', team: 'ATL', position: 'RF', avg: 0.301, home_runs: 3, rbi: 9, ops: 0.965, era: null, whip: null, updated_at: new Date().toISOString() },
-  { id: 5, player_id: 665742, full_name: 'Mookie Betts', team: 'LAD', position: 'SS', avg: 0.278, home_runs: 2, rbi: 8, ops: 0.912, era: null, whip: null, updated_at: new Date().toISOString() },
-  { id: 6, player_id: 666969, full_name: 'Freddie Freeman', team: 'LAD', position: '1B', avg: 0.305, home_runs: 3, rbi: 11, ops: 0.908, era: null, whip: null, updated_at: new Date().toISOString() },
-  { id: 7, player_id: 514888, full_name: 'José Ramírez', team: 'CLE', position: '3B', avg: 0.289, home_runs: 4, rbi: 13, ops: 0.895, era: null, whip: null, updated_at: new Date().toISOString() },
-  { id: 8, player_id: 677951, full_name: 'Corbin Carroll', team: 'ARI', position: 'CF', avg: 0.275, home_runs: 2, rbi: 7, ops: 0.878, era: null, whip: null, updated_at: new Date().toISOString() },
-  { id: 9, player_id: 543037, full_name: 'Gerrit Cole', team: 'NYY', position: 'P', avg: 0.000, home_runs: 0, rbi: 0, ops: 0.000, era: 2.45, whip: 0.98, updated_at: new Date().toISOString() },
-  { id: 10, player_id: 477132, full_name: 'Clayton Kershaw', team: 'LAD', position: 'P', avg: 0.000, home_runs: 0, rbi: 0, ops: 0.000, era: 2.89, whip: 1.05, updated_at: new Date().toISOString() },
-  { id: 11, player_id: 608566, full_name: 'Spencer Strider', team: 'ATL', position: 'P', avg: 0.000, home_runs: 0, rbi: 0, ops: 0.000, era: 2.12, whip: 0.88, updated_at: new Date().toISOString() },
-  { id: 12, player_id: 669203, full_name: 'Zack Wheeler', team: 'PHI', position: 'P', avg: 0.000, home_runs: 0, rbi: 0, ops: 0.000, era: 2.67, whip: 0.95, updated_at: new Date().toISOString() },
 ]
 
 export const mockWordFrequencies: WordFrequency[] = [

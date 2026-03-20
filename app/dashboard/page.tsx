@@ -1,91 +1,155 @@
 'use client'
 
+import { useMemo, useState } from 'react'
 import useSWR from 'swr'
-import type { DashboardData } from '@/types'
-import { fetcher } from '@/lib/utils'
-import GamePredictionCard from '@/components/GamePredictionCard'
-import PlayerStatsTable from '@/components/PlayerStatsTable'
-import { FadeIn, FadeInOnScroll, StaggerContainer, StaggerItem } from '@/components/MotionWrapper'
+import type { DashboardData, PlayerSearchResult } from '@/types'
+import { loadDashboardDataFromSupabase, searchPlayersSupabase } from '@/lib/dashboard-supabase'
+import DashboardLeaderboardTables from '@/components/DashboardLeaderboardTables'
+import PlayerStatsChartModal from '@/components/PlayerStatsChartModal'
+import PlayerSearchResults from '@/components/PlayerSearchResults'
+import { FadeInOnScroll } from '@/components/MotionWrapper'
+
+type SearchResponse = { results: PlayerSearchResult[] }
+
+const DASHBOARD_SWR_KEY = 'dashboard:supabase'
+
+function leaderboardsAllEmpty(data: DashboardData): boolean {
+  const lb = data.leaderboards
+  if (!lb) return true
+  return (
+    lb.hitters.byHomeRuns.length === 0 &&
+    lb.hitters.byAvg.length === 0 &&
+    lb.hitters.byOps.length === 0 &&
+    lb.pitchers.byEra.length === 0 &&
+    lb.pitchers.byStrikeouts.length === 0 &&
+    lb.pitchers.byWhip.length === 0
+  )
+}
 
 export default function DashboardPage() {
+  const [playerSearch, setPlayerSearch] = useState('')
+  const [chartPlayerId, setChartPlayerId] = useState<number | null>(null)
+
   const { data, error, isLoading } = useSWR<DashboardData>(
-    '/api/realTimeDash',
-    fetcher,
+    DASHBOARD_SWR_KEY,
+    () => loadDashboardDataFromSupabase(),
     { refreshInterval: 1000 * 60 }
   )
 
-  const liveGames = data?.games.filter(g => g.status === 'Live') ?? []
-  const otherGames = data?.games.filter(g => g.status !== 'Live') ?? []
+  const searchQuery = playerSearch.trim()
+  const searchActive = searchQuery.length >= 2
+
+  const searchKey = useMemo(() => {
+    if (!searchActive) return null
+    return ['player-search', searchQuery] as const
+  }, [searchActive, searchQuery])
+
+  const { data: searchData, isLoading: searchLoading } = useSWR<SearchResponse>(
+    searchKey,
+    async ([, q]: readonly ['player-search', string]) => ({ results: await searchPlayersSupabase(q) }),
+    { revalidateOnFocus: false }
+  )
+
+  const searchResults = searchData?.results ?? []
+
+  const noPlayerData = data && !searchActive && leaderboardsAllEmpty(data)
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-12">
-      <FadeIn>
-        <div className="mb-12">
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-live/30 bg-live/10 px-3 py-1 text-xs font-medium text-live">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-live live-dot" />
-            Auto-refresh every 60s
-          </div>
-          <h1 className="font-heading text-4xl font-extrabold tracking-tight md:text-5xl">
-            Live Dashboard
-          </h1>
-          <p className="mt-3 max-w-lg text-text-secondary">
-            Real-time game scores, win probability predictions, and top player statistics.
-          </p>
-        </div>
-      </FadeIn>
-
+    <div className="mx-auto max-w-7xl px-6 py-10">
       {isLoading && (
-        <div className="space-y-8">
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="glass-card h-52 animate-pulse bg-surface" />
-            ))}
-          </div>
-          <div className="glass-card h-96 animate-pulse bg-surface" />
-        </div>
+        <div className="glass-card h-96 animate-pulse bg-surface" />
       )}
 
       {error && (
         <div className="glass-card p-8 text-center">
-          <p className="text-text-secondary">Failed to load dashboard data. Please try again later.</p>
+          <p className="text-text-secondary">
+            Could not load dashboard data. Check the browser console and your Supabase env (
+            <code className="rounded bg-surface px-1">NEXT_PUBLIC_SUPABASE_URL</code> /{' '}
+            <code className="rounded bg-surface px-1">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>).
+          </p>
         </div>
       )}
 
       {data && (
         <>
-          {liveGames.length > 0 && (
-            <FadeInOnScroll>
-              <h2 className="mb-4 font-heading text-xl font-bold">
-                <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-live live-dot" />
-                Live Games
-              </h2>
-              <StaggerContainer className="mb-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {liveGames.map(game => (
-                  <StaggerItem key={game.game_pk}>
-                    <GamePredictionCard game={game} />
-                  </StaggerItem>
-                ))}
-              </StaggerContainer>
-            </FadeInOnScroll>
-          )}
-
-          {otherGames.length > 0 && (
-            <FadeInOnScroll>
-              <h2 className="mb-4 font-heading text-xl font-bold">Upcoming & Scheduled</h2>
-              <StaggerContainer className="mb-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                {otherGames.map(game => (
-                  <StaggerItem key={game.game_pk}>
-                    <GamePredictionCard game={game} />
-                  </StaggerItem>
-                ))}
-              </StaggerContainer>
-            </FadeInOnScroll>
-          )}
-
           <FadeInOnScroll>
-            <PlayerStatsTable players={data.players} />
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h1 className="font-heading text-3xl font-extrabold tracking-tight text-text-primary md:text-4xl">
+                    Top Players
+                  </h1>
+                  <p className="mt-2 text-sm text-text-secondary">
+                    Season <strong>{data.leaderboards.season}</strong> · Loaded directly from Supabase in the browser (
+                    <code className="rounded bg-surface px-1">player_stats</code> +{' '}
+                    <code className="rounded bg-surface px-1">team_rosters</code>, min {data.leaderboards.minHitterAb}{' '}
+                    AB / {data.leaderboards.minPitcherIp} IP). Search rosters by name (2+ characters).
+                  </p>
+                </div>
+                <label className="block w-full sm:max-w-md">
+                  <span className="mb-1.5 block text-xs font-medium uppercase tracking-wider text-text-muted">
+                    Search players
+                  </span>
+                  <input
+                    type="search"
+                    value={playerSearch}
+                    onChange={e => setPlayerSearch(e.target.value)}
+                    placeholder="e.g. Judge, Cole…"
+                    autoComplete="off"
+                    className="w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent"
+                  />
+                </label>
+              </div>
+
+              {searchActive ? (
+                <PlayerSearchResults
+                  results={searchResults}
+                  loading={searchLoading}
+                  query={searchQuery}
+                  onSelectPlayer={r => setChartPlayerId(r.player_id)}
+                />
+              ) : noPlayerData ? (
+                <div className="glass-card border border-dashed border-border p-8 text-center">
+                  <p className="text-sm font-medium text-text-primary">
+                    No leaderboard data (season {data.leaderboards.season})
+                  </p>
+                  <p className="mt-2 text-sm text-text-secondary">
+                    1) Confirm{' '}
+                    <code className="rounded bg-surface px-1.5 py-0.5 text-xs">NEXT_PUBLIC_SUPABASE_URL</code> +{' '}
+                    <code className="rounded bg-surface px-1.5 py-0.5 text-xs">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> are
+                    set for the client bundle. Check the browser Network/Console tabs for Supabase errors.
+                  </p>
+                  <p className="mt-3 text-sm text-text-secondary">
+                    2) If <code className="rounded bg-surface px-1.5 py-0.5 text-xs">player_stats.season</code> is not{' '}
+                    {data.leaderboards.season}, set e.g.{' '}
+                    <code className="rounded bg-surface px-1.5 py-0.5 text-xs">NEXT_PUBLIC_DASHBOARD_SEASON=2026</code> in{' '}
+                    <code className="rounded bg-surface px-1.5 py-0.5 text-xs">.env.local</code>.
+                  </p>
+                  <p className="mt-3 text-sm text-text-secondary">
+                    3) If qualification cutoffs are too strict, temporarily lower them with{' '}
+                    <code className="rounded bg-surface px-1.5 py-0.5 text-xs">
+                      NEXT_PUBLIC_DASHBOARD_MIN_HITTER_AB=50
+                    </code>{' '}
+                    and/or{' '}
+                    <code className="rounded bg-surface px-1.5 py-0.5 text-xs">
+                      NEXT_PUBLIC_DASHBOARD_MIN_PITCHER_IP=10
+                    </code>
+                    , then restore 300 / 50 once you verify the data.
+                  </p>
+                </div>
+              ) : (
+                <DashboardLeaderboardTables
+                  data={data.leaderboards}
+                  onSelectPlayer={p => setChartPlayerId(p.player_id)}
+                />
+              )}
+            </div>
           </FadeInOnScroll>
         </>
+      )}
+
+      {chartPlayerId != null && (
+        <PlayerStatsChartModal playerId={chartPlayerId} onClose={() => setChartPlayerId(null)} />
       )}
     </div>
   )

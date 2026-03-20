@@ -15,15 +15,27 @@ function formatGameDate(dateStr?: string | null): string {
 
 interface Props {
   game: GameSnapshot
+  onOpen?: () => void
 }
 
-export default function ScheduledGameCard({ game }: Props) {
+export default function ScheduledGameCard({ game, onOpen }: Props) {
   const homeProb = game.win_probability ?? 0.5
   const awayProb = 1 - homeProb
 
   return (
     <div
-      className="overflow-hidden rounded-xl transition-all hover:border-white/12"
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={e => {
+        if (onOpen && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault()
+          onOpen()
+        }
+      }}
+      className={`overflow-hidden rounded-xl transition-all ${
+        onOpen ? 'cursor-pointer hover:border-[#facc15]/30 hover:ring-1 hover:ring-[#facc15]/20' : ''
+      } hover:border-white/12`}
       style={{
         backgroundColor: '#1a1f2e',
         border: '1px solid rgba(255,255,255,0.08)',
