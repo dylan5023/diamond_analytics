@@ -3,6 +3,11 @@
 import { useState } from 'react'
 import useSWR from 'swr'
 import type { NewsArticle } from '@/types'
+import {
+  TOP_NEWS_CALENDAR_TZ,
+  calendarDateInTimeZone,
+  previousCalendarDateInTimeZone,
+} from '@/lib/top-news-calendar'
 import { fetcher, formatDate } from '@/lib/utils'
 import NewsCard from '@/components/NewsCard'
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/MotionWrapper'
@@ -41,16 +46,15 @@ function DatePicker({
   const canNext = selectedIdx > 0
 
   function displayDate(d: string) {
-    const dt = new Date(d + 'T00:00:00')
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
+    const tz = TOP_NEWS_CALENDAR_TZ
+    const vToday = calendarDateInTimeZone(tz)
+    const vYesterday = previousCalendarDateInTimeZone(tz)
+    if (d === vToday) return 'Today'
+    if (d === vYesterday) return 'Yesterday'
 
-    if (dt.getTime() === today.getTime()) return 'Today'
-    if (dt.getTime() === yesterday.getTime()) return 'Yesterday'
-
-    return dt.toLocaleDateString('en-US', {
+    const anchor = new Date(`${d}T12:00:00Z`)
+    return anchor.toLocaleDateString('en-US', {
+      timeZone: tz,
       month: 'short',
       day: 'numeric',
       weekday: 'short',

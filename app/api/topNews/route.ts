@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { mockNewsArticles } from '@/lib/mock-data'
+import { topNewsCalendarDate } from '@/lib/top-news-calendar'
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
@@ -71,7 +72,7 @@ function mergeAndRank(
 
 function saveArticles(articles: Record<string, unknown>[]) {
   ensureDir()
-  const today = new Date().toISOString().slice(0, 10)
+  const today = topNewsCalendarDate()
   const existing = getArticlesForDate(today) ?? []
   const merged = mergeAndRank(existing, articles)
   writeFileSync(dateFilePath(today), JSON.stringify(merged, null, 2), 'utf-8')
@@ -141,7 +142,7 @@ export async function POST(request: Request) {
     articles = [body]
   }
 
-  const today = new Date().toISOString().slice(0, 10)
+  const today = topNewsCalendarDate()
 
   if (USE_KV) {
     const { kv } = await import('@vercel/kv')

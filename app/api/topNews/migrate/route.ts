@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { topNewsCalendarDate } from '@/lib/top-news-calendar'
 
 const USE_KV = !!process.env.KV_REST_API_URL
 const TOP_N = 10
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => ({}))
-  const targetDate = (body.target_date as string) || new Date().toISOString().slice(0, 10)
+  const targetDate = (body.target_date as string) || topNewsCalendarDate()
 
   const { kv } = await import('@vercel/kv')
   const existingDates = (await kv.get<string[]>('top_news_dates')) ?? []
