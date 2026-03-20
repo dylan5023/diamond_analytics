@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { Suspense, startTransition, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import type { DashboardData, PlayerSearchResult } from '@/types'
 import { loadDashboardDataFromSupabase, searchPlayersSupabase } from '@/lib/dashboard-supabase'
@@ -26,9 +27,34 @@ function leaderboardsAllEmpty(data: DashboardData): boolean {
   )
 }
 
-export default function DashboardPage() {
+function DashboardPageInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [playerSearch, setPlayerSearch] = useState('')
   const [chartPlayerId, setChartPlayerId] = useState<number | null>(null)
+  /** Set when opening chart from MLB (`?gamePk=`) so we can jump back to that game modal. */
+  const [chartReturnGamePk, setChartReturnGamePk] = useState<number | null>(null)
+
+  const playerFromQuery = searchParams.get('player')
+  const gamePkFromQuery = searchParams.get('gamePk')
+  useEffect(() => {
+    if (playerFromQuery == null || playerFromQuery === '') return
+    const id = Number.parseInt(playerFromQuery, 10)
+    if (!Number.isFinite(id) || id < 1) {
+      router.replace('/dashboard', { scroll: false })
+      return
+    }
+    let returnPk: number | null = null
+    if (gamePkFromQuery != null && gamePkFromQuery !== '') {
+      const g = Number.parseInt(gamePkFromQuery, 10)
+      if (Number.isFinite(g) && g >= 1) returnPk = g
+    }
+    startTransition(() => {
+      setChartPlayerId(id)
+      setChartReturnGamePk(returnPk)
+    })
+    router.replace('/dashboard', { scroll: false })
+  }, [playerFromQuery, gamePkFromQuery, router])
 
   const { data, error, isLoading } = useSWR<DashboardData>(
     DASHBOARD_SWR_KEY,
@@ -106,7 +132,10 @@ export default function DashboardPage() {
                   results={searchResults}
                   loading={searchLoading}
                   query={searchQuery}
-                  onSelectPlayer={r => setChartPlayerId(r.player_id)}
+                  onSelectPlayer={r => {
+                    setChartReturnGamePk(null)
+                    setChartPlayerId(r.player_id)
+                  }}
                 />
               ) : noPlayerData ? (
                 <div className="glass-card border border-dashed border-border p-8 text-center">
@@ -140,7 +169,10 @@ export default function DashboardPage() {
               ) : (
                 <DashboardLeaderboardTables
                   data={data.leaderboards}
-                  onSelectPlayer={p => setChartPlayerId(p.player_id)}
+                  onSelectPlayer={p => {
+                    setChartReturnGamePk(null)
+                    setChartPlayerId(p.player_id)
+                  }}
                 />
               )}
             </div>
@@ -149,8 +181,40 @@ export default function DashboardPage() {
       )}
 
       {chartPlayerId != null && (
-        <PlayerStatsChartModal playerId={chartPlayerId} onClose={() => setChartPlayerId(null)} />
+        <PlayerStatsChartModal
+          playerId={chartPlayerId}
+          returnGamePk={chartReturnGamePk}
+          onClose={() => {
+            setChartPlayerId(null)
+            setChartReturnGamePk(null)
+          }}
+          onReturnToGame={
+            chartReturnGamePk != null
+              ? () => {
+                  router.push(`/mlb?game=${chartReturnGamePk}`)
+                  startTransition(() => {
+                    setChartPlayerId(null)
+                    setChartReturnGamePk(null)
+                  })
+                }
+              : undefined
+          }
+        />
       )}
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-7xl px-6 py-10">
+          <div className="glass-card h-96 animate-pulse bg-surface" />
+        </div>
+      }
+    >
+      <DashboardPageInner />
+    </Suspense>
   )
 }

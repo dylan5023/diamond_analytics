@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState, useMemo } from 'react'
 import {
   LineChart,
@@ -23,6 +24,8 @@ import MlbModal from './MlbModal'
 
 interface Props {
   playerId: number
+  /** When set, Dashboard link includes `gamePk` so the chart modal can navigate back to this game. */
+  gamePk?: number | null
   onClose: () => void
 }
 
@@ -32,7 +35,7 @@ function formatShortDate(iso?: string | null) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function PlayerDetailModal({ playerId, onClose }: Props) {
+export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [roster, setRoster] = useState<TeamRosterRow | null>(null)
@@ -154,6 +157,21 @@ export default function PlayerDetailModal({ playerId, onClose }: Props) {
 
   return (
     <MlbModal title={title} onClose={onClose} wide stacked>
+      <div className="mb-5">
+        <Link
+          href={
+            gamePk != null && gamePk > 0
+              ? `/dashboard?player=${playerId}&gamePk=${gamePk}`
+              : `/dashboard?player=${playerId}`
+          }
+          className="inline-flex items-center gap-2 rounded-lg border border-[#facc15]/40 bg-[#facc15]/10 px-4 py-2.5 text-sm font-semibold text-[#facc15] transition-colors hover:border-[#facc15]/60 hover:bg-[#facc15]/18 hover:text-white"
+        >
+          Season stats & charts on Dashboard
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>
+      </div>
       {loading && (
         <div className="space-y-4">
           <div className="h-24 animate-pulse rounded-lg bg-white/10" />

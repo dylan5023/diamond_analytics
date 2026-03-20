@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Suspense, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { GameSnapshot } from '@/types'
 import { isFinalStatus } from '@/lib/mlb-game'
@@ -51,7 +52,9 @@ function dedupeLatestByGamePk(rows: GameSnapshot[]): GameSnapshot[] {
   return [...map.values()]
 }
 
-export default function MLBPage() {
+function MLBPageInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [games, setGames] = useState<GameSnapshot[]>([])
   const [finalGamesAll, setFinalGamesAll] = useState<GameSnapshot[]>([])
   const [selectedFinalDate, setSelectedFinalDate] = useState<string | null>(null)
@@ -149,6 +152,53 @@ export default function MLBPage() {
 
   const liveGames = games.filter(g => g.status === 'Live')
   const scheduledGames = games.filter(g => g.status === 'Scheduled')
+
+  const gamesByPk = useMemo(() => {
+    const merged = dedupeLatestByGamePk([...games, ...finalGamesAll])
+    return new Map(merged.map(g => [g.game_pk, g]))
+  }, [games, finalGamesAll])
+
+  const gameFromQuery = searchParams.get('game')
+  useEffect(() => {
+    if (gameFromQuery == null || gameFromQuery === '') return
+    const pk = Number.parseInt(gameFromQuery, 10)
+    if (!Number.isFinite(pk) || pk < 1) {
+      router.replace('/mlb', { scroll: false })
+      return
+    }
+
+    const fromList = gamesByPk.get(pk)
+    if (fromList) {
+      startTransition(() => setSelectedGame(fromList))
+      router.replace('/mlb', { scroll: false })
+      return
+    }
+
+    if (loading || finalsLoading) return
+
+    let cancelled = false
+    void (async () => {
+      const { data: row, error: rowError } = await supabase
+        .from('game_snapshots')
+        .select('*')
+        .eq('game_pk', pk)
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (cancelled) return
+      if (rowError || !row) {
+        router.replace('/mlb', { scroll: false })
+        return
+      }
+      startTransition(() => setSelectedGame(row as GameSnapshot))
+      router.replace('/mlb', { scroll: false })
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [gameFromQuery, gamesByPk, loading, finalsLoading, router])
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#0f1117' }}>
@@ -302,9 +352,18 @@ export default function MLBPage() {
       {selectedPlayerId != null && (
         <PlayerDetailModal
           playerId={selectedPlayerId}
+          gamePk={selectedGame?.game_pk ?? null}
           onClose={() => setSelectedPlayerId(null)}
         />
       )}
     </div>
+  )
+}
+
+export default function MLBPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" style={{ backgroundColor: '#0f1117' }} />}>
+      <MLBPageInner />
+    </Suspense>
   )
 }

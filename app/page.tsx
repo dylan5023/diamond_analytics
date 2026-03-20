@@ -6,6 +6,20 @@ import { FadeIn, FadeInOnScroll } from '@/components/MotionWrapper'
 
 const features = [
   {
+    title: 'Live Dashboard',
+    description:
+      "Real-time scores and win probability for today's games — MLB page, refreshed every 15 minutes.",
+    href: '/mlb',
+    icon: (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1" />
+        <rect x="14" y="3" width="7" height="7" rx="1" />
+        <rect x="3" y="14" width="7" height="7" rx="1" />
+        <rect x="14" y="14" width="7" height="7" rx="1" />
+      </svg>
+    ),
+  },
+  {
     title: 'AI-Powered Blog',
     description: 'YouTube comment sentiment analysis transformed into insightful baseball blog posts by AI.',
     href: '/blogs',
@@ -18,7 +32,7 @@ const features = [
     ),
   },
   {
-    title: 'Top Headlines',
+    title: 'Top News',
     description: 'Breaking MLB news scraped, summarized, and delivered every 6 hours from top sources.',
     href: '/top-news',
     icon: (
@@ -31,15 +45,15 @@ const features = [
     ),
   },
   {
-    title: 'Live Dashboard',
-    description: 'Real-time game scores, win probabilities, and top player stats updated every 15 minutes.',
+    title: 'Player Dashboard',
+    description: 'Season leaderboards for qualified hitters and pitchers — browse stats and open player charts.',
     href: '/dashboard',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <rect x="14" y="14" width="7" height="7" rx="1" />
+        <path d="M3 3v18h18" />
+        <path d="M7 16V9" />
+        <path d="M12 16v-5" />
+        <path d="M17 16V6" />
       </svg>
     ),
   },
@@ -85,13 +99,19 @@ export default function Home() {
               Real-time MLB data, AI-generated analysis, and gear insights — 
               all powered by automated pipelines that never sleep.
             </p>
-            <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
               <Link
-                href="/dashboard"
+                href="/mlb"
                 className="inline-flex h-12 items-center gap-2 rounded-xl bg-accent px-7 text-sm font-semibold text-white transition-all hover:bg-accent-dim hover:shadow-lg hover:shadow-accent/20"
               >
                 <span className="inline-block h-2 w-2 rounded-full bg-live live-dot" />
                 Live Dashboard
+              </Link>
+              <Link
+                href="/dashboard"
+                className="inline-flex h-12 items-center rounded-xl border border-border px-7 text-sm font-semibold text-text-secondary transition-all hover:border-border-hover hover:text-text-primary"
+              >
+                Player Dashboard
               </Link>
               <Link
                 href="/blogs"
@@ -125,14 +145,15 @@ export default function Home() {
       <section className="relative mx-auto max-w-7xl px-6 pb-32">
         <FadeInOnScroll>
           <h2 className="font-heading text-center text-3xl font-bold tracking-tight md:text-4xl">
-            Four Pillars of Insight
+            Explore the platform
           </h2>
           <p className="mx-auto mt-3 max-w-lg text-center text-text-secondary">
-            Each feature is powered by a dedicated n8n automation pipeline, delivering fresh data around the clock.
+            Live MLB games, season leaderboards, news, blogs, and more — much of it fed by n8n pipelines around the
+            clock.
           </p>
         </FadeInOnScroll>
 
-        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {features.map((feature, i) => (
             <FadeInOnScroll key={feature.title} delay={i * 0.08}>
               <Link href={feature.href} className="group block">

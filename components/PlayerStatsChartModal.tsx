@@ -394,9 +394,17 @@ function PitchingCharts({
 interface Props {
   playerId: number
   onClose: () => void
+  /** When set with `onReturnToGame`, shows a control to reopen the MLB game modal. */
+  returnGamePk?: number | null
+  onReturnToGame?: () => void
 }
 
-export default function PlayerStatsChartModal({ playerId, onClose }: Props) {
+export default function PlayerStatsChartModal({
+  playerId,
+  onClose,
+  returnGamePk,
+  onReturnToGame,
+}: Props) {
   const { data, error, isLoading } = useSWR(
     ['player-chart', playerId],
     () => fetchPlayerStatsForCharts(playerId)
@@ -430,21 +438,36 @@ export default function PlayerStatsChartModal({ playerId, onClose }: Props) {
         aria-modal="true"
         aria-labelledby="player-chart-title"
       >
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h2 id="player-chart-title" className="font-heading text-xl font-bold text-white">
-              {isLoading ? 'Loading…' : data?.full_name ?? 'Player stats'}
-            </h2>
-            {!isLoading && data && (
-              <p className="mt-1 text-sm text-white/85">
-                Season {data.season} · {data.team} · {data.position}
-              </p>
-            )}
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-1 items-start gap-2">
+            {returnGamePk != null && onReturnToGame ? (
+              <button
+                type="button"
+                onClick={onReturnToGame}
+                className="mt-0.5 shrink-0 rounded-lg border border-border p-2 text-white/80 transition-colors hover:border-accent/50 hover:bg-white/10 hover:text-white"
+                title="Back to game"
+                aria-label="Back to MLB game"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M19 12H5M12 19l-7-7 7-7" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </button>
+            ) : null}
+            <div className="min-w-0">
+              <h2 id="player-chart-title" className="font-heading text-xl font-bold text-white">
+                {isLoading ? 'Loading…' : data?.full_name ?? 'Player stats'}
+              </h2>
+              {!isLoading && data && (
+                <p className="mt-1 text-sm text-white/85">
+                  Season {data.season} · {data.team} · {data.position}
+                </p>
+              )}
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
+            className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
           >
             Close
           </button>
