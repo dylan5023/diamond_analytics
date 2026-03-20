@@ -6,6 +6,44 @@ import type { DashboardLeaderboards, PlayerStats } from '@/types'
 type HitterTab = 'hr' | 'avg' | 'ops'
 type PitcherTab = 'era' | 'k' | 'whip'
 
+/** Top 3 rows: gold / silver / bronze tinted row backgrounds. */
+function podiumRowClass(i: number): string {
+  if (i > 2) return 'border-b border-border/50'
+  const fills = [
+    'border-b border-border/35 bg-gradient-to-r from-amber-500/22 via-amber-400/14 to-amber-600/18',
+    'border-b border-border/35 bg-gradient-to-r from-slate-400/20 via-slate-300/12 to-slate-500/16',
+    'border-b border-border/50 bg-gradient-to-r from-orange-700/24 via-amber-800/14 to-orange-900/20',
+  ] as const
+  return fills[i]
+}
+
+/** Readable on dark table + medal row backgrounds. */
+const leaderboardRowText = {
+  rank: 'text-white/90',
+  name: 'font-medium text-white',
+  sub: 'text-white/78',
+  team: 'font-medium text-white/88',
+  teamSub: 'text-white/72',
+  stat: 'text-white',
+  accent: 'font-bold text-accent-light',
+} as const
+
+/** Hover: stronger accent for 4+; deepen medal tint for podium. */
+function leaderboardRowHoverClass(interactive: boolean, rankIndex: number): string {
+  if (!interactive) return ''
+  const base = 'transition-[background-color,box-shadow] duration-200 ease-out'
+  if (rankIndex === 0) {
+    return `${base} hover:from-amber-400/32 hover:via-amber-300/22 hover:to-amber-500/26 hover:shadow-[inset_0_0_0_1px_rgba(251,191,36,0.4)]`
+  }
+  if (rankIndex === 1) {
+    return `${base} hover:from-slate-300/28 hover:via-slate-200/18 hover:to-slate-400/22 hover:shadow-[inset_0_0_0_1px_rgba(203,213,225,0.35)]`
+  }
+  if (rankIndex === 2) {
+    return `${base} hover:from-orange-600/32 hover:via-amber-700/20 hover:to-orange-800/26 hover:shadow-[inset_0_0_0_1px_rgba(234,88,12,0.35)]`
+  }
+  return `${base} hover:bg-accent/22 hover:shadow-[inset_0_0_0_1px_var(--color-border-hover)]`
+}
+
 interface Props {
   data: DashboardLeaderboards
   onSelectPlayer?: (player: PlayerStats) => void
@@ -135,44 +173,47 @@ function HitterTable({
                 </td>
               </tr>
             ) : (
-              rows.map((p, i) => (
-                <tr
-                  key={`${p.player_id}-${mode}`}
-                  role={onSelectPlayer ? 'button' : undefined}
-                  tabIndex={onSelectPlayer ? 0 : undefined}
-                  className={`border-b border-border/50 hover:bg-surface ${onSelectPlayer ? 'cursor-pointer' : ''}`}
-                  onClick={() => onSelectPlayer?.(p)}
-                  onKeyDown={e => {
-                    if (onSelectPlayer && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault()
-                      onSelectPlayer(p)
-                    }
-                  }}
-                >
-                  <td className="px-4 py-2.5 text-xs text-text-muted">{i + 1}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="text-sm font-medium text-text-primary">{p.full_name}</div>
-                    <div className="text-[10px] text-text-muted">{p.position}</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="text-xs font-medium text-text-secondary">{p.team}</div>
-                    {p.team_name && (
-                      <div className="text-[10px] text-text-muted">{p.team_name}</div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-sm tabular-nums text-text-primary">
-                    {p.at_bats ?? '—'}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-sm tabular-nums text-text-primary">
-                    {p.avg.toFixed(3)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-sm tabular-nums text-text-primary">{p.home_runs}</td>
-                  <td className="px-3 py-2.5 text-right text-sm tabular-nums text-text-primary">{p.rbi}</td>
-                  <td className="px-3 py-2.5 text-right text-sm font-bold tabular-nums text-accent">
-                    {p.ops.toFixed(3)}
-                  </td>
-                </tr>
-              ))
+              rows.map((p, i) => {
+                const t = leaderboardRowText
+                return (
+                  <tr
+                    key={`${p.player_id}-${mode}`}
+                    role={onSelectPlayer ? 'button' : undefined}
+                    tabIndex={onSelectPlayer ? 0 : undefined}
+                    className={`${podiumRowClass(i)} ${leaderboardRowHoverClass(!!onSelectPlayer, i)} ${onSelectPlayer ? 'cursor-pointer' : ''}`}
+                    onClick={() => onSelectPlayer?.(p)}
+                    onKeyDown={e => {
+                      if (onSelectPlayer && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        onSelectPlayer(p)
+                      }
+                    }}
+                  >
+                    <td className={`px-4 py-2.5 text-xs tabular-nums ${t.rank}`}>{i + 1}</td>
+                    <td className="px-3 py-2.5">
+                      <div className={`text-sm ${t.name}`}>{p.full_name}</div>
+                      <div className={`text-[10px] ${t.sub}`}>{p.position}</div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className={`text-xs ${t.team}`}>{p.team}</div>
+                      {p.team_name && (
+                        <div className={`text-[10px] ${t.teamSub}`}>{p.team_name}</div>
+                      )}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.stat}`}>
+                      {p.at_bats ?? '—'}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.stat}`}>
+                      {p.avg.toFixed(3)}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.stat}`}>{p.home_runs}</td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.stat}`}>{p.rbi}</td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.accent}`}>
+                      {p.ops.toFixed(3)}
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>
@@ -213,45 +254,48 @@ function PitcherTable({
                 </td>
               </tr>
             ) : (
-              rows.map((p, i) => (
-                <tr
-                  key={`${p.player_id}-${mode}`}
-                  role={onSelectPlayer ? 'button' : undefined}
-                  tabIndex={onSelectPlayer ? 0 : undefined}
-                  className={`border-b border-border/50 hover:bg-surface ${onSelectPlayer ? 'cursor-pointer' : ''}`}
-                  onClick={() => onSelectPlayer?.(p)}
-                  onKeyDown={e => {
-                    if (onSelectPlayer && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault()
-                      onSelectPlayer(p)
-                    }
-                  }}
-                >
-                  <td className="px-4 py-2.5 text-xs text-text-muted">{i + 1}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="text-sm font-medium text-text-primary">{p.full_name}</div>
-                    <div className="text-[10px] text-text-muted">{p.position}</div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="text-xs font-medium text-text-secondary">{p.team}</div>
-                    {p.team_name && (
-                      <div className="text-[10px] text-text-muted">{p.team_name}</div>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-sm tabular-nums text-text-primary">
-                    {p.innings_pitched != null ? p.innings_pitched.toFixed(3) : '—'}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-sm font-bold tabular-nums text-accent">
-                    {p.era != null ? p.era.toFixed(3) : '—'}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-sm tabular-nums text-text-primary">
-                    {p.whip != null ? p.whip.toFixed(3) : '—'}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-sm tabular-nums text-text-primary">
-                    {p.strikeouts != null ? Math.round(p.strikeouts) : '—'}
-                  </td>
-                </tr>
-              ))
+              rows.map((p, i) => {
+                const t = leaderboardRowText
+                return (
+                  <tr
+                    key={`${p.player_id}-${mode}`}
+                    role={onSelectPlayer ? 'button' : undefined}
+                    tabIndex={onSelectPlayer ? 0 : undefined}
+                    className={`${podiumRowClass(i)} ${leaderboardRowHoverClass(!!onSelectPlayer, i)} ${onSelectPlayer ? 'cursor-pointer' : ''}`}
+                    onClick={() => onSelectPlayer?.(p)}
+                    onKeyDown={e => {
+                      if (onSelectPlayer && (e.key === 'Enter' || e.key === ' ')) {
+                        e.preventDefault()
+                        onSelectPlayer(p)
+                      }
+                    }}
+                  >
+                    <td className={`px-4 py-2.5 text-xs tabular-nums ${t.rank}`}>{i + 1}</td>
+                    <td className="px-3 py-2.5">
+                      <div className={`text-sm ${t.name}`}>{p.full_name}</div>
+                      <div className={`text-[10px] ${t.sub}`}>{p.position}</div>
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className={`text-xs ${t.team}`}>{p.team}</div>
+                      {p.team_name && (
+                        <div className={`text-[10px] ${t.teamSub}`}>{p.team_name}</div>
+                      )}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.stat}`}>
+                      {p.innings_pitched != null ? p.innings_pitched.toFixed(2) : '—'}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.accent}`}>
+                      {p.era != null ? p.era.toFixed(2) : '—'}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.stat}`}>
+                      {p.whip != null ? p.whip.toFixed(2) : '—'}
+                    </td>
+                    <td className={`px-3 py-2.5 text-right text-sm tabular-nums ${t.stat}`}>
+                      {p.strikeouts != null ? Math.round(p.strikeouts) : '—'}
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>

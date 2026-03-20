@@ -24,7 +24,10 @@ import type { PlayerChartProfile, SeasonLeagueAverages } from '@/types'
 const ACCENT = '#c9a84c'
 const LEAGUE_LINE = '#22c55e'
 const GRID = 'rgba(255,255,255,0.06)'
-const AXIS = '#94a3b8'
+/** Chart axis / angle labels — brighter on dark modal */
+const AXIS = '#d1dae3'
+const TOOLTIP_LABEL = '#f1f5f9'
+const TOOLTIP_ITEM = '#e8edf4'
 
 const tooltipProps = {
   contentStyle: {
@@ -32,13 +35,15 @@ const tooltipProps = {
     border: '1px solid rgba(255,255,255,0.12)',
     borderRadius: 8,
     fontSize: 12,
+    color: TOOLTIP_ITEM,
   },
-  labelStyle: { color: AXIS },
+  labelStyle: { color: TOOLTIP_LABEL },
+  itemStyle: { color: TOOLTIP_ITEM },
 }
 
 const legendProps = {
   wrapperStyle: { fontSize: 11, paddingTop: 8 },
-  formatter: (value: string) => <span className="text-text-secondary">{value}</span>,
+  formatter: (value: string) => <span className="text-white/88">{value}</span>,
 }
 
 /** Display numbers with 3 decimal places (charts + tooltips). */
@@ -104,14 +109,14 @@ function PitchingRadarTooltip({
       className="rounded-lg border border-border/60 bg-[#1a1f2e] px-3 py-2 text-xs shadow-lg"
       style={{ ...tooltipProps.contentStyle }}
     >
-      <p className="mb-1 font-semibold text-text-primary">{row.subject}</p>
-      <p className="text-text-secondary">
+      <p className="mb-1 font-semibold text-white">{row.subject}</p>
+      <p className="text-white/88">
         Player: {rp == null || !Number.isFinite(rp) ? '—' : fmt3(rp)}
       </p>
       {rl != null && Number.isFinite(rl) ? (
-        <p className="text-text-secondary">League avg: {fmt3(rl)}</p>
+        <p className="text-white/88">League avg: {fmt3(rl)}</p>
       ) : null}
-      <p className="mt-1 text-[10px] text-text-muted">{`Index vs league (100 = average): ${fmt3(row.player)}`}</p>
+      <p className="mt-1 text-[10px] text-white/65">{`Index vs league (100 = average): ${fmt3(row.player)}`}</p>
     </div>
   )
 }
@@ -119,8 +124,8 @@ function PitchingRadarTooltip({
 function ChartBlock({ title, hint, children }: { title: string; hint?: string; children: ReactNode }) {
   return (
     <div className="rounded-xl border border-border/60 bg-surface/50 p-4">
-      <h4 className="mb-1 font-heading text-xs font-bold uppercase tracking-wider text-text-muted">{title}</h4>
-      {hint ? <p className="mb-3 text-[10px] text-text-muted">{hint}</p> : <div className="mb-3" />}
+      <h4 className="mb-1 font-heading text-xs font-bold uppercase tracking-wider text-white/90">{title}</h4>
+      {hint ? <p className="mb-3 text-[10px] text-white/70">{hint}</p> : <div className="mb-3" />}
       {children}
     </div>
   )
@@ -333,7 +338,7 @@ function PitchingCharts({
 
   if (rows.length < 3) {
     return (
-      <p className="text-sm text-text-secondary">
+      <p className="text-sm text-white/85">
         Not enough pitching stats to draw a radar (need at least 3 categories).
       </p>
     )
@@ -427,11 +432,11 @@ export default function PlayerStatsChartModal({ playerId, onClose }: Props) {
       >
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h2 id="player-chart-title" className="font-heading text-xl font-bold text-text-primary">
+            <h2 id="player-chart-title" className="font-heading text-xl font-bold text-white">
               {isLoading ? 'Loading…' : data?.full_name ?? 'Player stats'}
             </h2>
             {!isLoading && data && (
-              <p className="mt-1 text-sm text-text-secondary">
+              <p className="mt-1 text-sm text-white/85">
                 Season {data.season} · {data.team} · {data.position}
               </p>
             )}
@@ -439,7 +444,7 @@ export default function PlayerStatsChartModal({ playerId, onClose }: Props) {
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-border px-3 py-1.5 text-sm text-text-secondary transition-colors hover:bg-surface hover:text-text-primary"
+            className="rounded-lg border border-border px-3 py-1.5 text-sm text-white/80 transition-colors hover:bg-white/10 hover:text-white"
           >
             Close
           </button>
@@ -454,25 +459,26 @@ export default function PlayerStatsChartModal({ playerId, onClose }: Props) {
         )}
 
         {!isLoading && !error && data === null && (
-          <p className="text-sm text-text-secondary">No roster or stats found for this player.</p>
+          <p className="text-sm text-white/85">No roster or stats found for this player.</p>
         )}
 
         {!isLoading && !error && data && !data.hitting && !data.pitching && (
-          <p className="text-sm text-text-secondary">
-            No <code className="rounded bg-surface px-1">player_stats</code> rows for season {data.season}.
+          <p className="text-sm text-white/85">
+            No <code className="rounded bg-white/10 px-1 text-accent-light">player_stats</code> rows for season{' '}
+            {data.season}.
           </p>
         )}
 
         {!isLoading && !error && data?.hitting && (
           <section>
-            <h3 className="mb-4 font-heading text-sm font-bold uppercase tracking-wider text-text-muted">Hitting</h3>
+            <h3 className="mb-4 font-heading text-sm font-bold uppercase tracking-wider text-white/88">Hitting</h3>
             <HittingCharts h={data.hitting} league={leagueAvgs?.hitting} />
           </section>
         )}
 
         {!isLoading && !error && data?.pitching && (
           <section className={data.hitting ? 'mt-8' : ''}>
-            <h3 className="mb-4 font-heading text-sm font-bold uppercase tracking-wider text-text-muted">Pitching</h3>
+            <h3 className="mb-4 font-heading text-sm font-bold uppercase tracking-wider text-white/88">Pitching</h3>
             <PitchingCharts p={data.pitching} league={leagueAvgs?.pitching} />
           </section>
         )}

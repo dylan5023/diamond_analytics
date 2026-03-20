@@ -70,12 +70,28 @@ function mergeAndRank(
     .map((a, i) => ({ ...a, rank: i + 1 }))
 }
 
-function saveArticles(articles: Record<string, unknown>[]) {
+/** Only when body is `{ data: [...] }` or `[{ data: [...] }]` — avoids treating a bare article as a wrapper. */
+function readOptionalBucketDateFromWrapper(body: unknown): string | null {
+  const fromObject = (o: unknown): string | null => {
+    if (!o || typeof o !== 'object' || Array.isArray(o)) return null
+    const r = o as Record<string, unknown>
+    if (!Array.isArray(r.data)) return null
+    const raw = r.target_date ?? r.bucket_date
+    if (typeof raw !== 'string') return null
+    const s = raw.trim()
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null
+  }
+  const direct = fromObject(body)
+  if (direct) return direct
+  if (Array.isArray(body) && body.length === 1) return fromObject(body[0])
+  return null
+}
+
+function saveArticles(articles: Record<string, unknown>[], calendarDate: string) {
   ensureDir()
-  const today = topNewsCalendarDate()
-  const existing = getArticlesForDate(today) ?? []
+  const existing = getArticlesForDate(calendarDate) ?? []
   const merged = mergeAndRank(existing, articles)
-  writeFileSync(dateFilePath(today), JSON.stringify(merged, null, 2), 'utf-8')
+  writeFileSync(dateFilePath(calendarDate), JSON.stringify(merged, null, 2), 'utf-8')
 }
 
 export async function GET(request: Request) {
@@ -142,20 +158,21 @@ export async function POST(request: Request) {
     articles = [body]
   }
 
-  const today = topNewsCalendarDate()
+  const bucketDate =
+    readOptionalBucketDateFromWrapper(body) ?? topNewsCalendarDate()
 
   if (USE_KV) {
     const { kv } = await import('@vercel/kv')
-    const existing = (await kv.get<Record<string, unknown>[]>(`top_news_${today}`)) ?? []
+    const existing = (await kv.get<Record<string, unknown>[]>(`top_news_${bucketDate}`)) ?? []
     const merged = mergeAndRank(existing, articles)
-    await kv.set(`top_news_${today}`, merged, { ex: 60 * 60 * 24 * 30 })
+    await kv.set(`top_news_${bucketDate}`, merged, { ex: 60 * 60 * 24 * 30 })
     const existingDates = (await kv.get<string[]>('top_news_dates')) ?? []
-    const allDates = [...new Set([...existingDates, today])].sort().reverse()
+    const allDates = [...new Set([...existingDates, bucketDate])].sort().reverse()
     await kv.set('top_news_dates', allDates)
     await kv.set('top_news_latest_date', allDates[0])
   } else {
-    saveArticles(articles)
+    saveArticles(articles, bucketDate)
   }
 
-  return NextResponse.json({ ok: true, count: articles.length })
+  return NextResponse.json({ ok: true, count: articles.length, date: bucketDate })
 }

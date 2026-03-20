@@ -45,7 +45,7 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t border-[#3a3a3a] bg-[#2a2a2a]">
-          <div className="mx-auto w-full px-6 py-5 lg:px-10 xl:px-14">
+          <div className="mx-auto w-full px-6 py-6 lg:px-10 xl:px-14">
             <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
               <div className="flex items-center gap-2.5">
                 <img
@@ -65,6 +65,28 @@ export default function RootLayout({
                 </p>
                 <p className="text-xs text-[#a0a0a0]">
                   Built by <span className="text-accent">Dylan Kang</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-6 md:flex md:justify-end">
+              <div className="mx-auto max-w-3xl text-center md:mx-0 md:text-right">
+                <p className="text-[11px] leading-relaxed text-[#c8c8c8]">
+                  <span className="font-medium text-[#dcdcdc]">Data attribution.</span> Statistics, scores, and
+                  related baseball data on this site are sourced from MLB Advanced Media / official MLB feeds. © 2026
+                  MLB Advanced Media, L.P.
+                </p>
+                <p className="mt-2 text-[11px] leading-relaxed text-[#b0b0b0]">
+                  Use of any content on this page acknowledges agreement to the terms posted at{' '}
+                  <a
+                    href="https://gdx.mlb.com/components/copyright.txt"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all text-accent underline decoration-accent/50 underline-offset-2 transition-colors hover:text-accent-light hover:decoration-accent-light"
+                  >
+                    gdx.mlb.com/components/copyright.txt
+                  </a>
+                  .
                 </p>
               </div>
             </div>
