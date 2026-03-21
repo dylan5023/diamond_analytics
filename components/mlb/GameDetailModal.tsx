@@ -169,8 +169,8 @@ function resolveHomeAwayTeamIds(
   game: GameSnapshot,
   abbrMap: Record<string, number>
 ): { away: number | null; home: number | null } {
-  let awayTid = game.away_team_id ?? abbrMap[toRosterTeamAbbr(game.away_team)] ?? null
-  let homeTid = game.home_team_id ?? abbrMap[toRosterTeamAbbr(game.home_team)] ?? null
+  let awayTid: number | null = game.away_team_id ?? abbrMap[toRosterTeamAbbr(game.away_team)] ?? null
+  let homeTid: number | null = game.home_team_id ?? abbrMap[toRosterTeamAbbr(game.home_team)] ?? null
   const fromBox = [
     ...new Set(
       boxRows.map(b => b.team_id).filter((id): id is number => id != null && Number.isFinite(Number(id)))
