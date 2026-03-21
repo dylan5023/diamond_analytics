@@ -56,6 +56,7 @@ export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) 
       setLeaguePit2025(null)
       try {
         const [rosterRes, statsRes, box2026Res, leagueHit, leaguePit] = await Promise.all([
+          // team_rosters PK is (player_id, team_id); multiple rows possible. For profile name, any row’s full_name is enough.
           supabase.from('team_rosters').select('*').eq('player_id', playerId).limit(1).maybeSingle(),
           supabase
             .from('player_stats')
@@ -69,7 +70,8 @@ export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) 
             .eq('player_id', playerId)
             .gte('game_date', '2026-01-01')
             .lt('game_date', '2027-01-01')
-            .order('game_date', { ascending: false }),
+            .order('game_date', { ascending: false })
+            .limit(500),
           getLeagueHittingAverages(supabase, 2025).catch(() => null),
           getLeaguePitchingAverages(supabase, 2025).catch(() => null),
         ])

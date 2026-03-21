@@ -17,6 +17,16 @@ function rosterKey(r: TeamRosterRow) {
   return `${r.player_id}-${r.team_id}`
 }
 
+/** `game_snapshots` team code → `team_rosters.team_abbr` (add rows when they diverge). */
+const TEAM_ABBR_MAP: Record<string, string> = {
+  ARI: 'AZ',
+  // 추가 불일치 발견시 여기에 추가
+}
+
+function toRosterTeamAbbr(snapshotAbbr: string): string {
+  return TEAM_ABBR_MAP[snapshotAbbr] ?? snapshotAbbr
+}
+
 /** Display game status in English (handles mixed DB values). Korean keys use \\u escapes (ASCII-only source). */
 function gameStatusEn(status: string): string {
   const s = status?.trim() ?? ''
@@ -44,35 +54,271 @@ function gameStatusEn(status: string): string {
   return map[s] ?? s
 }
 
+/** DISTINCT(team_id, team_abbr) equivalent: first team_id wins per abbreviation. */
+function teamIdByAbbrFromRosterRows(rows: { team_id?: number | null; team_abbr?: string | null }[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const r of rows) {
+    const abbr = r.team_abbr?.trim()
+    const tid = r.team_id
+    if (!abbr || tid == null || !Number.isFinite(Number(tid))) continue
+    if (out[abbr] === undefined) out[abbr] = Number(tid)
+  }
+  return out
+}
+
+const ROSTER_PAGE_LIMIT = 3000
+const PLAYER_ID_CHUNK = 100
+/** Headroom for multiple `team_rosters` rows per player (seasons / roster types). PK is (player_id, team_id). */
+const ROSTER_FETCH_ROWS_PER_PLAYER = 12
+
+function teamIdFromBoxForPlayer(boxRows: GameBoxscoreRow[], playerId: number): number | null {
+  for (const b of boxRows) {
+    if (b.player_id !== playerId) continue
+    const tid = b.team_id
+    if (tid != null && Number.isFinite(Number(tid))) return Number(tid)
+  }
+  return null
+}
+
+/**
+ * Merge roster rows for boxscore players not in `initial`. `team_rosters` can have multiple rows per
+ * `player_id` (trades, seasons); match `game_boxscores.team_id` when choosing a row, else first row.
+ */
+async function mergeRostersForBoxscorePlayers(
+  boxRows: GameBoxscoreRow[],
+  initial: TeamRosterRow[],
+  cancelled: () => boolean
+): Promise<TeamRosterRow[]> {
+  const byId = new Map<number, TeamRosterRow>()
+  for (const r of initial) {
+    byId.set(r.player_id, r)
+  }
+  const neededIds = [...new Set(boxRows.map(b => b.player_id))]
+  const missing = neededIds.filter(id => !byId.has(id))
+  for (let i = 0; i < missing.length; i += PLAYER_ID_CHUNK) {
+    if (cancelled()) break
+    const slice = missing.slice(i, i + PLAYER_ID_CHUNK)
+    const rowCap = Math.min(2000, slice.length * ROSTER_FETCH_ROWS_PER_PLAYER)
+    const { data, error } = await supabase.from('team_rosters').select('*').in('player_id', slice).limit(rowCap)
+    if (error) throw error
+    const fetched = (data ?? []) as TeamRosterRow[]
+    const byPlayer = new Map<number, TeamRosterRow[]>()
+    for (const r of fetched) {
+      const list = byPlayer.get(r.player_id) ?? []
+      list.push(r)
+      byPlayer.set(r.player_id, list)
+    }
+    for (const pid of slice) {
+      const candidates = byPlayer.get(pid)
+      if (!candidates?.length) continue
+      const boxTid = teamIdFromBoxForPlayer(boxRows, pid)
+      const picked =
+        boxTid != null ? candidates.find(r => r.team_id === boxTid) ?? candidates[0] : candidates[0]
+      byId.set(pid, picked)
+    }
+  }
+  return [...byId.values()]
+}
+
+const MLB_PEOPLE_BATCH = 50
+
+type MlbPeopleResponse = {
+  people?: { id?: number; fullName?: string }[]
+}
+
+/** https://statsapi.mlb.com/api/v1/people?personIds=…&fields=people,id,fullName */
+async function fetchMlbPeopleFullNames(personIds: number[]): Promise<Record<number, string>> {
+  if (personIds.length === 0) return {}
+  const params = new URLSearchParams({
+    personIds: personIds.join(','),
+    fields: 'people,id,fullName',
+  })
+  const res = await fetch(`https://statsapi.mlb.com/api/v1/people?${params}`)
+  if (!res.ok) return {}
+  const data = (await res.json()) as MlbPeopleResponse
+  const out: Record<number, string> = {}
+  for (const p of data.people ?? []) {
+    const id = p.id
+    const name = p.fullName?.trim()
+    if (id != null && Number.isFinite(id) && name) out[id] = name
+  }
+  return out
+}
+
+async function fetchMlbNamesForPlayerIds(
+  personIds: number[],
+  cancelled: () => boolean
+): Promise<Record<number, string>> {
+  const merged: Record<number, string> = {}
+  for (let i = 0; i < personIds.length; i += MLB_PEOPLE_BATCH) {
+    if (cancelled()) break
+    const slice = personIds.slice(i, i + MLB_PEOPLE_BATCH)
+    try {
+      const part = await fetchMlbPeopleFullNames(slice)
+      Object.assign(merged, part)
+    } catch {
+      /* one batch failure should not block others */
+    }
+  }
+  return merged
+}
+
+/** When only one side resolved from abbr→id map, infer the other MLB `team_id` from distinct boxscore rows. */
+function resolveHomeAwayTeamIds(
+  boxRows: GameBoxscoreRow[],
+  game: GameSnapshot,
+  abbrMap: Record<string, number>
+): { away: number | null; home: number | null } {
+  let awayTid = game.away_team_id ?? abbrMap[toRosterTeamAbbr(game.away_team)] ?? null
+  let homeTid = game.home_team_id ?? abbrMap[toRosterTeamAbbr(game.home_team)] ?? null
+  const fromBox = [
+    ...new Set(
+      boxRows.map(b => b.team_id).filter((id): id is number => id != null && Number.isFinite(Number(id)))
+    ),
+  ]
+  if (fromBox.length === 2) {
+    if (awayTid != null && homeTid == null) {
+      homeTid = fromBox.find(id => id !== awayTid) ?? null
+    } else if (homeTid != null && awayTid == null) {
+      awayTid = fromBox.find(id => id !== homeTid) ?? null
+    }
+  }
+  return { away: awayTid, home: homeTid }
+}
+
+async function fetchTeamIdRowsForAbbrs(abbrs: string[]): Promise<{ data: { team_id: number; team_abbr: string }[]; error: Error | null }> {
+  if (abbrs.length === 0) return { data: [], error: null }
+  const results = await Promise.all(
+    abbrs.map(abbr =>
+      supabase.from('team_rosters').select('team_id, team_abbr').eq('team_abbr', abbr).limit(100)
+    )
+  )
+  for (const r of results) {
+    if (r.error) return { data: [], error: r.error }
+  }
+  return { data: results.flatMap(r => (r.data ?? []) as { team_id: number; team_abbr: string }[]), error: null }
+}
+
+async function fetchRosterRowsForGame(game: GameSnapshot): Promise<{ data: TeamRosterRow[]; error: Error | null }> {
+  const abbrs = [...new Set([toRosterTeamAbbr(game.away_team), toRosterTeamAbbr(game.home_team)].filter(Boolean))]
+  const homeId = game.home_team_id
+  const awayId = game.away_team_id
+
+  if (homeId != null && awayId != null) {
+    const [awayR, homeR] = await Promise.all([
+      supabase.from('team_rosters').select('*').eq('team_id', awayId).limit(ROSTER_PAGE_LIMIT),
+      supabase.from('team_rosters').select('*').eq('team_id', homeId).limit(ROSTER_PAGE_LIMIT),
+    ])
+    if (awayR.error) return { data: [], error: awayR.error }
+    if (homeR.error) return { data: [], error: homeR.error }
+    return {
+      data: [...(awayR.data ?? []), ...(homeR.data ?? [])] as TeamRosterRow[],
+      error: null,
+    }
+  }
+
+  if (abbrs.length === 0) return { data: [], error: null }
+
+  const results = await Promise.all(
+    abbrs.map(abbr => supabase.from('team_rosters').select('*').eq('team_abbr', abbr).limit(ROSTER_PAGE_LIMIT))
+  )
+  for (const r of results) {
+    if (r.error) return { data: [], error: r.error }
+  }
+  return { data: results.flatMap(r => (r.data ?? []) as TeamRosterRow[]), error: null }
+}
+
+function rosterHasTeamId(rows: TeamRosterRow[], tid: number | null): boolean {
+  if (tid == null) return false
+  return rows.some(r => r.team_id === tid)
+}
+
+async function mergeRosterRowsByTeamId(
+  rows: TeamRosterRow[],
+  tid: number | null,
+  cancelled: () => boolean
+): Promise<TeamRosterRow[]> {
+  if (tid == null || cancelled() || rosterHasTeamId(rows, tid)) return rows
+  const { data, error } = await supabase.from('team_rosters').select('*').eq('team_id', tid).limit(ROSTER_PAGE_LIMIT)
+  if (error || cancelled()) return rows
+  const byKey = new Map<string, TeamRosterRow>()
+  for (const r of rows) {
+    byKey.set(rosterKey(r), r)
+  }
+  for (const r of (data ?? []) as TeamRosterRow[]) {
+    byKey.set(rosterKey(r), r)
+  }
+  return [...byKey.values()]
+}
+
+/** Boxscore player_ids that still need a display name after roster (non-empty full_name) lookup. */
+function playerIdsMissingRosterName(boxRows: GameBoxscoreRow[], rosterRows: TeamRosterRow[]): number[] {
+  const rosterHasName = new Set<number>()
+  for (const r of rosterRows) {
+    if (r.full_name?.trim()) rosterHasName.add(r.player_id)
+  }
+  const need = new Set<number>()
+  for (const b of boxRows) {
+    if (!rosterHasName.has(b.player_id)) need.add(b.player_id)
+  }
+  return [...need]
+}
+
 export default function GameDetailModal({ game, onClose, onPlayerClick }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [rosters, setRosters] = useState<TeamRosterRow[]>([])
   const [boxscores, setBoxscores] = useState<GameBoxscoreRow[]>([])
+  /** Resolved MLB team ids for home/away (abbr map + boxscore backfill when snapshot abbr ≠ roster abbr). */
+  const [resolvedGameTeamIds, setResolvedGameTeamIds] = useState<{ away: number | null; home: number | null }>({
+    away: null,
+    home: null,
+  })
+  /** Names from MLB Stats API for players missing from `team_rosters` (e.g. spring roster gaps). */
+  const [mlbNameByPlayerId, setMlbNameByPlayerId] = useState<Record<number, string>>({})
 
   useEffect(() => {
     let cancelled = false
     async function load() {
       setLoading(true)
       setError(null)
+      setResolvedGameTeamIds({ away: null, home: null })
+      setMlbNameByPlayerId({})
       try {
-        const [boxRes, rosterRes] = await Promise.all([
-          supabase.from('game_boxscores').select('*').eq('game_pk', game.game_pk),
-          (() => {
-            const homeId = game.home_team_id
-            const awayId = game.away_team_id
-            if (homeId != null && awayId != null) {
-              return supabase.from('team_rosters').select('*').in('team_id', [homeId, awayId])
-            }
-            return supabase.from('team_rosters').select('*').in('team_abbr', [game.away_team, game.home_team])
-          })(),
+        const rosterAbbrs = [...new Set([toRosterTeamAbbr(game.away_team), toRosterTeamAbbr(game.home_team)].filter(Boolean))]
+
+        const [boxRes, rosterOut, teamMapOut] = await Promise.all([
+          supabase
+            .from('game_boxscores')
+            .select('*')
+            .eq('game_pk', game.game_pk)
+            // PostgREST default max rows can cap below full box score; one game needs headroom for both teams × two stat groups.
+            .limit(500),
+          fetchRosterRowsForGame(game),
+          fetchTeamIdRowsForAbbrs(rosterAbbrs),
         ])
 
         if (boxRes.error) throw boxRes.error
-        if (rosterRes.error) throw rosterRes.error
+        if (rosterOut.error) throw rosterOut.error
+        if (teamMapOut.error) throw teamMapOut.error
         if (cancelled) return
-        setBoxscores((boxRes.data ?? []) as GameBoxscoreRow[])
-        setRosters((rosterRes.data ?? []) as TeamRosterRow[])
+        const boxRows = (boxRes.data ?? []) as GameBoxscoreRow[]
+        const abbrMap = teamIdByAbbrFromRosterRows(teamMapOut.data ?? [])
+        const teamIds = resolveHomeAwayTeamIds(boxRows, game, abbrMap)
+        let rosterRows = rosterOut.data
+        rosterRows = await mergeRostersForBoxscorePlayers(boxRows, rosterRows, () => cancelled)
+        if (cancelled) return
+        rosterRows = await mergeRosterRowsByTeamId(rosterRows, teamIds.away, () => cancelled)
+        rosterRows = await mergeRosterRowsByTeamId(rosterRows, teamIds.home, () => cancelled)
+        if (cancelled) return
+        const missingNameIds = playerIdsMissingRosterName(boxRows, rosterRows)
+        const mlbNames =
+          missingNameIds.length > 0 ? await fetchMlbNamesForPlayerIds(missingNameIds, () => cancelled) : {}
+        if (cancelled) return
+        setBoxscores(boxRows)
+        setRosters(rosterRows)
+        setResolvedGameTeamIds(teamIds)
+        setMlbNameByPlayerId(mlbNames)
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
@@ -88,10 +334,16 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
   const nameByPlayerId = useMemo(() => {
     const m = new Map<number, string>()
     for (const r of rosters) {
-      m.set(r.player_id, r.full_name)
+      const name = r.full_name?.trim()
+      if (name) m.set(r.player_id, name)
+    }
+    for (const [key, name] of Object.entries(mlbNameByPlayerId)) {
+      const id = Number(key)
+      if (!Number.isFinite(id) || !name?.trim()) continue
+      if (!m.has(id)) m.set(id, name.trim())
     }
     return m
-  }, [rosters])
+  }, [rosters, mlbNameByPlayerId])
 
   const posByPlayerId = useMemo(() => {
     const m = new Map<number, string>()
@@ -101,39 +353,68 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
     return m
   }, [rosters])
 
+  const awayTeamIdResolved = resolvedGameTeamIds.away
+  const homeTeamIdResolved = resolvedGameTeamIds.home
+
   const awayRoster = useMemo(() => {
-    const list = rosters.filter(r => r.team_abbr === game.away_team || r.team_id === game.away_team_id)
+    const list = rosters.filter(
+      r =>
+        r.team_abbr === toRosterTeamAbbr(game.away_team) ||
+        r.team_id === game.away_team_id ||
+        (awayTeamIdResolved != null && r.team_id === awayTeamIdResolved)
+    )
     return list.sort((a, b) => (a.jersey_number ?? 999) - (b.jersey_number ?? 999))
-  }, [rosters, game.away_team, game.away_team_id])
+  }, [rosters, game.away_team, game.away_team_id, awayTeamIdResolved])
 
   const homeRoster = useMemo(() => {
-    const list = rosters.filter(r => r.team_abbr === game.home_team || r.team_id === game.home_team_id)
+    const list = rosters.filter(
+      r =>
+        r.team_abbr === toRosterTeamAbbr(game.home_team) ||
+        r.team_id === game.home_team_id ||
+        (homeTeamIdResolved != null && r.team_id === homeTeamIdResolved)
+    )
     return list.sort((a, b) => (a.jersey_number ?? 999) - (b.jersey_number ?? 999))
-  }, [rosters, game.home_team, game.home_team_id])
+  }, [rosters, game.home_team, game.home_team_id, homeTeamIdResolved])
 
+  /** Split boxscore rows by numeric team_id (from row) vs home/away ids from snapshot or roster abbreviation map. */
   const awayBox = useMemo(() => {
     return boxscores.filter(b => {
-      if (game.away_team_id != null) return b.team_id === game.away_team_id
+      const bid = b.team_id
+      const awayId = awayTeamIdResolved
+      const homeId = homeTeamIdResolved
+      if (awayId != null && bid === awayId) return true
+      if (homeId != null && bid === homeId) return false
       const r = rosters.find(x => x.player_id === b.player_id)
-      return r?.team_abbr === game.away_team
+      return Boolean(
+        r &&
+          (r.team_abbr === toRosterTeamAbbr(game.away_team) ||
+            r.team_id === game.away_team_id ||
+            (awayId != null && r.team_id === awayId))
+      )
     })
-  }, [boxscores, rosters, game.away_team, game.away_team_id])
+  }, [boxscores, rosters, game.away_team, game.away_team_id, awayTeamIdResolved, homeTeamIdResolved])
 
   const homeBox = useMemo(() => {
     return boxscores.filter(b => {
-      if (game.home_team_id != null) return b.team_id === game.home_team_id
+      const bid = b.team_id
+      const awayId = awayTeamIdResolved
+      const homeId = homeTeamIdResolved
+      if (homeId != null && bid === homeId) return true
+      if (awayId != null && bid === awayId) return false
       const r = rosters.find(x => x.player_id === b.player_id)
-      return r?.team_abbr === game.home_team
+      return Boolean(
+        r &&
+          (r.team_abbr === toRosterTeamAbbr(game.home_team) ||
+            r.team_id === game.home_team_id ||
+            (homeId != null && r.team_id === homeId))
+      )
     })
-  }, [boxscores, rosters, game.home_team, game.home_team_id])
+  }, [boxscores, rosters, game.home_team, game.home_team_id, awayTeamIdResolved, homeTeamIdResolved])
 
-  const awayHitters = awayBox.filter(
-    b => b.stat_group === 'hitting' && (b.at_bats ?? 0) !== 0
-  )
+  // DB already scopes rows (e.g. AB/IP); only split by stat_group + team — no extra AB/IP filters here.
+  const awayHitters = awayBox.filter(b => b.stat_group === 'hitting')
   const awayPitchers = awayBox.filter(b => b.stat_group === 'pitching')
-  const homeHitters = homeBox.filter(
-    b => b.stat_group === 'hitting' && (b.at_bats ?? 0) !== 0
-  )
+  const homeHitters = homeBox.filter(b => b.stat_group === 'hitting')
   const homePitchers = homeBox.filter(b => b.stat_group === 'pitching')
 
   const title = `${game.away_team} @ ${game.home_team}`
