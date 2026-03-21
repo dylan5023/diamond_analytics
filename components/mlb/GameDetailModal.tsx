@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { getFinalOutcome, isFinalStatus } from '@/lib/mlb-game'
 import { supabase } from '@/lib/supabase'
 import type { GameSnapshot } from '@/types'
-import type { TeamRosterRow, GameBoxscoreRow } from '@/types/mlb'
+import type { TeamRosterRow, GameBoxscoreRow, GameLinescoreRow } from '@/types/mlb'
 import MlbModal from './MlbModal'
 
 interface Props {
@@ -251,6 +252,335 @@ async function mergeRosterRowsByTeamId(
   return [...byKey.values()]
 }
 
+function linescoreInningByNum(innings: unknown): Map<number, { home: number | null; away: number | null }> {
+  const m = new Map<number, { home: number | null; away: number | null }>()
+  if (!Array.isArray(innings)) return m
+  for (const cell of innings) {
+    if (!cell || typeof cell !== 'object') continue
+    const o = cell as { num?: unknown; home?: unknown; away?: unknown }
+    const num = Number(o.num)
+    if (!Number.isFinite(num) || num < 1) continue
+    const toVal = (v: unknown): number | null => {
+      if (v === null || v === undefined) return null
+      const n = Number(v)
+      return Number.isFinite(n) ? n : null
+    }
+    m.set(num, { home: toVal(o.home), away: toVal(o.away) })
+  }
+  return m
+}
+
+function linescoreInningColumnNums(byNum: Map<number, { home: number | null; away: number | null }>): number[] {
+  const keys = [...byNum.keys()]
+  const maxFromData = keys.length > 0 ? Math.max(...keys) : 0
+  const n = Math.max(9, maxFromData)
+  return Array.from({ length: n }, (_, i) => i + 1)
+}
+
+/** null / missing → '-' per spec */
+function linescoreCell(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '-'
+  if (typeof v === 'number' && Number.isNaN(v)) return '-'
+  return String(v)
+}
+
+/** MLB Stats API playByPlay — loose shape */
+type MlbPlayByPlayPlay = {
+  about?: { inning?: number; isTopInning?: boolean }
+  result?: {
+    event?: string
+    eventType?: string
+    description?: string
+    rbi?: number | string
+  }
+  matchup?: { batter?: { fullName?: string } }
+}
+
+function isScoringResultPlay(play: MlbPlayByPlayPlay): boolean {
+  const r = play?.result
+  if (!r) return false
+  const et = String(r.eventType ?? '').toLowerCase()
+  if (et === 'home_run') return true
+  const rbi = Number(r.rbi)
+  return Number.isFinite(rbi) && rbi > 0
+}
+
+function filterScoringPlaysForHalfInning(
+  plays: MlbPlayByPlayPlay[],
+  inning: number,
+  isTopInning: boolean
+): MlbPlayByPlayPlay[] {
+  return plays.filter(p => {
+    const ab = p?.about
+    if (ab?.inning !== inning || ab.isTopInning !== isTopInning) return false
+    return isScoringResultPlay(p)
+  })
+}
+
+function playToTooltipLine(p: MlbPlayByPlayPlay): {
+  batter: string
+  event: string
+  description: string
+  rbi: number
+} {
+  const r = p?.result
+  const rbi = Number(r?.rbi)
+  return {
+    batter: p?.matchup?.batter?.fullName?.trim() || '—',
+    event: (r?.event ?? '—').trim() || '—',
+    description: (r?.description ?? '').trim(),
+    rbi: Number.isFinite(rbi) ? rbi : 0,
+  }
+}
+
+function GameLinescoreSection({
+  row,
+  game,
+  awayTeamLabel,
+  homeTeamLabel,
+}: {
+  row: GameLinescoreRow
+  game: GameSnapshot
+  awayTeamLabel: string
+  homeTeamLabel: string
+}) {
+  const byNum = linescoreInningByNum(row.innings)
+  const inningCols = linescoreInningColumnNums(byNum)
+
+  const pbpCacheRef = useRef<MlbPlayByPlayPlay[] | null>(null)
+  const pbpInflightRef = useRef<Promise<MlbPlayByPlayPlay[] | null> | null>(null)
+  const hoverGenRef = useRef(0)
+
+  const [pbpTooltip, setPbpTooltip] = useState<{
+    x: number
+    y: number
+    loading: boolean
+    lines: { batter: string; event: string; description: string; rbi: number }[]
+    label: string
+  } | null>(null)
+
+  const loadPlayByPlay = useCallback(async (): Promise<MlbPlayByPlayPlay[] | null> => {
+    if (pbpCacheRef.current !== null) return pbpCacheRef.current
+    if (pbpInflightRef.current) return pbpInflightRef.current
+    const p = (async () => {
+      try {
+        const res = await fetch(`https://statsapi.mlb.com/api/v1/game/${game.game_pk}/playByPlay`)
+        if (!res.ok) return null
+        const json = (await res.json()) as { allPlays?: MlbPlayByPlayPlay[] }
+        const plays = Array.isArray(json.allPlays) ? json.allPlays : []
+        pbpCacheRef.current = plays
+        return plays
+      } catch {
+        return null
+      } finally {
+        pbpInflightRef.current = null
+      }
+    })()
+    pbpInflightRef.current = p
+    return p
+  }, [game.game_pk])
+
+  const showInningPbp = useCallback(
+    async (e: React.MouseEvent, inning: number, isTopInning: boolean, runs: number | null, sideLabel: string) => {
+      if (runs === null || runs <= 0) return
+      const gen = ++hoverGenRef.current
+      const x = e.clientX
+      const y = e.clientY
+      setPbpTooltip({
+        x,
+        y,
+        loading: true,
+        lines: [],
+        label: `${sideLabel} · Inning ${inning}`,
+      })
+      const plays = await loadPlayByPlay()
+      if (gen !== hoverGenRef.current) return
+      if (!plays?.length) {
+        setPbpTooltip({
+          x,
+          y,
+          loading: false,
+          lines: [],
+          label: `${sideLabel} · Inning ${inning}`,
+        })
+        return
+      }
+      const filtered = filterScoringPlaysForHalfInning(plays, inning, isTopInning)
+      const lines = filtered.map(playToTooltipLine)
+      setPbpTooltip({
+        x,
+        y,
+        loading: false,
+        lines,
+        label: `${sideLabel} · Inning ${inning}`,
+      })
+    },
+    [loadPlayByPlay]
+  )
+
+  const hideInningPbp = useCallback(() => {
+    hoverGenRef.current += 1
+    setPbpTooltip(null)
+  }, [])
+
+  const winner = row.winner_name?.trim() ?? ''
+  const loser = row.loser_name?.trim() ?? ''
+  const save = row.save_name?.trim() ?? ''
+
+  const awaySp = game.away_pitcher?.trim() ?? ''
+  const homeSp = game.home_pitcher?.trim() ?? ''
+
+  const tooltipPortal =
+    typeof document !== 'undefined' &&
+    pbpTooltip &&
+    createPortal(
+      <div
+        className="pointer-events-none fixed z-[300] max-h-[min(70vh,420px)] w-[min(calc(100vw-24px),340px)] overflow-y-auto rounded-xl border border-white/15 bg-[#141821] p-3 text-left shadow-2xl shadow-black/60"
+        style={{ left: Math.min(pbpTooltip.x + 12, typeof window !== 'undefined' ? window.innerWidth - 360 : 0), top: pbpTooltip.y + 12 }}
+        role="tooltip"
+      >
+        <p className="mb-2 border-b border-white/10 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {pbpTooltip.label}
+        </p>
+        {pbpTooltip.loading ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : pbpTooltip.lines.length === 0 ? (
+          <p className="text-sm text-slate-500">No scoring plays matched for this half-inning.</p>
+        ) : (
+          <ul className="space-y-3 text-sm text-slate-200">
+            {pbpTooltip.lines.map((line, i) => (
+              <li key={i} className="border-b border-white/[0.06] pb-3 last:border-0 last:pb-0">
+                <p className="font-medium text-[#facc15]">{line.batter}</p>
+                <p className="mt-0.5 text-slate-300">{line.event}</p>
+                {line.description ? <p className="mt-1 text-xs leading-snug text-slate-500">{line.description}</p> : null}
+                <p className="mt-1 text-xs tabular-nums text-slate-400">RBI: {line.rbi}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>,
+      document.body
+    )
+
+  return (
+    <section className="space-y-5">
+      <h3 className="font-heading text-base font-semibold text-white">Linescore</h3>
+
+      {tooltipPortal}
+
+      <div className="overflow-x-auto rounded-xl border border-white/[0.1] bg-[#0f1117]">
+        <table className="w-full min-w-[520px] border-collapse text-left text-sm text-slate-200">
+          <thead>
+            <tr className="border-b border-white/[0.08] bg-[#252b3d] text-xs font-semibold uppercase tracking-wide text-slate-400">
+              <th className="sticky left-0 z-10 whitespace-nowrap bg-[#252b3d] px-3 py-3 text-left">Team</th>
+              {inningCols.map(n => (
+                <th key={n} className="min-w-[2.25rem] px-2 py-3 text-center tabular-nums">
+                  {n}
+                </th>
+              ))}
+              <th className="min-w-[2.5rem] px-2 py-3 text-center font-semibold text-slate-300">R</th>
+              <th className="min-w-[2.5rem] px-2 py-3 text-center font-semibold text-slate-300">H</th>
+              <th className="min-w-[2.5rem] px-2 py-3 text-center font-semibold text-slate-300">E</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-white/[0.06] bg-white/[0.02]">
+              <td className="sticky left-0 z-10 whitespace-nowrap bg-[#0f1117] px-3 py-2.5 font-medium text-slate-100">
+                {awayTeamLabel}
+              </td>
+              {inningCols.map(n => {
+                const cell = byNum.get(n)
+                const runs = cell?.away ?? null
+                const interactive = runs != null && runs > 0
+                return (
+                  <td
+                    key={n}
+                    className={`px-2 py-2.5 text-center tabular-nums text-slate-300 ${interactive ? 'cursor-help underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
+                    onMouseEnter={e => interactive && showInningPbp(e, n, true, runs, awayTeamLabel)}
+                    onMouseLeave={hideInningPbp}
+                  >
+                    {linescoreCell(runs)}
+                  </td>
+                )
+              })}
+              <td className="px-2 py-2.5 text-center tabular-nums font-medium text-slate-200">
+                {linescoreCell(row.away_runs ?? null)}
+              </td>
+              <td className="px-2 py-2.5 text-center tabular-nums text-slate-300">{linescoreCell(row.away_hits ?? null)}</td>
+              <td className="px-2 py-2.5 text-center tabular-nums text-slate-300">
+                {linescoreCell(row.away_errors ?? null)}
+              </td>
+            </tr>
+            <tr>
+              <td className="sticky left-0 z-10 whitespace-nowrap bg-[#0f1117] px-3 py-2.5 font-medium text-slate-100">
+                {homeTeamLabel}
+              </td>
+              {inningCols.map(n => {
+                const cell = byNum.get(n)
+                const runs = cell?.home ?? null
+                const interactive = runs != null && runs > 0
+                return (
+                  <td
+                    key={n}
+                    className={`px-2 py-2.5 text-center tabular-nums text-slate-300 ${interactive ? 'cursor-help underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
+                    onMouseEnter={e => interactive && showInningPbp(e, n, false, runs, homeTeamLabel)}
+                    onMouseLeave={hideInningPbp}
+                  >
+                    {linescoreCell(runs)}
+                  </td>
+                )
+              })}
+              <td className="px-2 py-2.5 text-center tabular-nums font-medium text-slate-200">
+                {linescoreCell(row.home_runs ?? null)}
+              </td>
+              <td className="px-2 py-2.5 text-center tabular-nums text-slate-300">{linescoreCell(row.home_hits ?? null)}</td>
+              <td className="px-2 py-2.5 text-center tabular-nums text-slate-300">
+                {linescoreCell(row.home_errors ?? null)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="rounded-xl border border-white/[0.1] bg-[#0f1117] p-4 sm:p-5">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Decision pitchers</h4>
+        <ul className="space-y-2 text-sm text-slate-200">
+          <li>
+            <span className="mr-2 inline-block w-8 font-semibold text-slate-500">W</span>
+            {winner || '-'}
+          </li>
+          <li>
+            <span className="mr-2 inline-block w-8 font-semibold text-slate-500">L</span>
+            {loser || '-'}
+          </li>
+          {save ? (
+            <li>
+              <span className="mr-2 inline-block w-8 font-semibold text-slate-500">SV</span>
+              {save}
+            </li>
+          ) : null}
+        </ul>
+      </div>
+
+      <div className="rounded-xl border border-white/[0.1] bg-[#0f1117] p-4 sm:p-5">
+        <h4 className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-500">Starting pitchers</h4>
+        <ul className="space-y-2 text-sm text-slate-200">
+          <li>
+            <span className="mr-2 font-medium text-[#facc15]">{awayTeamLabel}</span>
+            <span className="text-slate-400">·</span>
+            <span className="ml-2">{awaySp || '-'}</span>
+          </li>
+          <li>
+            <span className="mr-2 font-medium text-[#facc15]">{homeTeamLabel}</span>
+            <span className="text-slate-400">·</span>
+            <span className="ml-2">{homeSp || '-'}</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+  )
+}
+
 /** Boxscore player_ids that still need a display name after roster (non-empty full_name) lookup. */
 function playerIdsMissingRosterName(boxRows: GameBoxscoreRow[], rosterRows: TeamRosterRow[]): number[] {
   const rosterHasName = new Set<number>()
@@ -276,6 +606,7 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
   })
   /** Names from MLB Stats API for players missing from `team_rosters` (e.g. spring roster gaps). */
   const [mlbNameByPlayerId, setMlbNameByPlayerId] = useState<Record<number, string>>({})
+  const [linescore, setLinescore] = useState<GameLinescoreRow | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -284,10 +615,11 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
       setError(null)
       setResolvedGameTeamIds({ away: null, home: null })
       setMlbNameByPlayerId({})
+      setLinescore(null)
       try {
         const rosterAbbrs = [...new Set([toRosterTeamAbbr(game.away_team), toRosterTeamAbbr(game.home_team)].filter(Boolean))]
 
-        const [boxRes, rosterOut, teamMapOut] = await Promise.all([
+        const [boxRes, rosterOut, teamMapOut, linescoreRes] = await Promise.all([
           supabase
             .from('game_boxscores')
             .select('*')
@@ -296,6 +628,7 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
             .limit(500),
           fetchRosterRowsForGame(game),
           fetchTeamIdRowsForAbbrs(rosterAbbrs),
+          supabase.from('game_linescores').select('*').eq('game_pk', game.game_pk).limit(1).maybeSingle(),
         ])
 
         if (boxRes.error) throw boxRes.error
@@ -319,6 +652,9 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
         setRosters(rosterRows)
         setResolvedGameTeamIds(teamIds)
         setMlbNameByPlayerId(mlbNames)
+        if (!linescoreRes.error && linescoreRes.data) {
+          setLinescore(linescoreRes.data as GameLinescoreRow)
+        }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
@@ -491,6 +827,16 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
               </div>
             </div>
           </div>
+
+          {linescore && (
+            <GameLinescoreSection
+              key={game.game_pk}
+              row={linescore}
+              game={game}
+              awayTeamLabel={game.away_team}
+              homeTeamLabel={game.home_team}
+            />
+          )}
 
           <section>
             <h3 className="mb-1 font-heading text-lg font-semibold text-white">Lineups</h3>
