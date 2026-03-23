@@ -170,8 +170,8 @@ function resolveHomeAwayTeamIds(
   game: GameSnapshot,
   abbrMap: Record<string, number>
 ): { away: number | null; home: number | null } {
-  const awayTid: number | null = game.away_team_id ?? abbrMap[toRosterTeamAbbr(game.away_team)] ?? null
-  const homeTid: number | null = game.home_team_id ?? abbrMap[toRosterTeamAbbr(game.home_team)] ?? null
+  let awayTid: number | null = game.away_team_id ?? abbrMap[toRosterTeamAbbr(game.away_team)] ?? null
+  let homeTid: number | null = game.home_team_id ?? abbrMap[toRosterTeamAbbr(game.home_team)] ?? null
   const fromBox = [
     ...new Set(
       boxRows.map(b => b.team_id).filter((id): id is number => id != null && Number.isFinite(Number(id)))
@@ -179,10 +179,9 @@ function resolveHomeAwayTeamIds(
   ]
   if (fromBox.length === 2) {
     if (awayTid != null && homeTid == null) {
-      return { away: awayTid, home: fromBox.find(id => id !== awayTid) ?? null }
-    }
-    if (homeTid != null && awayTid == null) {
-      return { away: fromBox.find(id => id !== homeTid) ?? null, home: homeTid }
+      homeTid = fromBox.find(id => id !== awayTid) ?? null
+    } else if (homeTid != null && awayTid == null) {
+      awayTid = fromBox.find(id => id !== homeTid) ?? null
     }
   }
   return { away: awayTid, home: homeTid }
