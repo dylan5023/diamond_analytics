@@ -370,7 +370,7 @@ export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) 
                 </p>
               )}
               {showHittingChart && (
-                <div className="mt-5 h-72 w-full rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
+                <div className="mt-5 h-72 w-full min-w-0 rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartHitting} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
                       <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.6} />
@@ -432,7 +432,7 @@ export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) 
                 </p>
               )}
               {showPitchingChart && (
-                <div className="mt-5 h-72 w-full rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
+                <div className="mt-5 h-72 w-full min-w-0 rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={chartPitching} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
                       <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.6} />

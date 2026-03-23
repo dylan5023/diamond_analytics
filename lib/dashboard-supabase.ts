@@ -173,12 +173,19 @@ async function mapHitterRowsInnerJoin(
   rows: PlayerStatsRow[]
 ): Promise<PlayerStats[]> {
   if (rows.length === 0) return []
+  const seen = new Set<number>()
+  const deduped: PlayerStatsRow[] = []
+  for (const r of rows) {
+    if (seen.has(r.player_id)) continue
+    seen.add(r.player_id)
+    deduped.push(r)
+  }
   const roster = await rosterMapForIds(
     client,
-    rows.map(r => r.player_id)
+    deduped.map(r => r.player_id)
   )
   const out: PlayerStats[] = []
-  for (const r of rows) {
+  for (const r of deduped) {
     const ro = roster.get(r.player_id)
     if (!ro) continue
     out.push(mapHitterRow(r, ro))
@@ -192,12 +199,19 @@ async function mapPitcherRowsInnerJoin(
   rows: PlayerStatsRow[]
 ): Promise<PlayerStats[]> {
   if (rows.length === 0) return []
+  const seen = new Set<number>()
+  const deduped: PlayerStatsRow[] = []
+  for (const r of rows) {
+    if (seen.has(r.player_id)) continue
+    seen.add(r.player_id)
+    deduped.push(r)
+  }
   const roster = await rosterMapForIds(
     client,
-    rows.map(r => r.player_id)
+    deduped.map(r => r.player_id)
   )
   const out: PlayerStats[] = []
-  for (const r of rows) {
+  for (const r of deduped) {
     const ro = roster.get(r.player_id)
     if (!ro) continue
     out.push(mapPitcherRow(r, ro))
@@ -346,7 +360,15 @@ export async function searchPlayersSupabase(query: string): Promise<PlayerSearch
     .limit(40)
 
   if (rosterErr) throw rosterErr
-  const rosterList = rosterRows ?? []
+  const rosterRaw = rosterRows ?? []
+  /** Same player can appear on multiple roster rows (trades, duplicates) — one row per id for stable React keys. */
+  const rosterById = new Map<number, (typeof rosterRaw)[number]>()
+  for (const r of rosterRaw) {
+    const pid = r.player_id as number
+    if (!Number.isFinite(pid)) continue
+    if (!rosterById.has(pid)) rosterById.set(pid, r)
+  }
+  const rosterList = [...rosterById.values()]
   if (rosterList.length === 0) return []
 
   const ids = rosterList.map(r => r.player_id as number)

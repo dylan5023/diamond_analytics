@@ -54,7 +54,7 @@ export default function GamePredictionCard({ game }: Props) {
         </div>
 
         {!isScheduled && (
-          <div className="mt-4">
+          <div className="mt-4 min-w-0">
             <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-text-muted">
               Win Probability
             </div>

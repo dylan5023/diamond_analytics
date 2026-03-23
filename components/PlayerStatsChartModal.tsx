@@ -73,6 +73,14 @@ function indexVsLeagueHigherBetter(player: number, league: number | null | undef
   return clamp(100 * (player / league), 0, 200)
 }
 
+/** Radar vertex order: W and L are opposite (3 apart) so the polygon does not pinch between them. */
+const PITCHING_RADAR_VERTEX_ORDER = ['ERA', 'W', 'WHIP', 'L', 'IP', 'K'] as const
+
+function sortPitchingRadarRows(rows: PitchingRadarRow[]): PitchingRadarRow[] {
+  const rank = new Map<string, number>(PITCHING_RADAR_VERTEX_ORDER.map((s, i) => [s, i]))
+  return [...rows].sort((a, b) => (rank.get(a.subject) ?? 99) - (rank.get(b.subject) ?? 99))
+}
+
 /** When no league row: rough 0–100 “shape” for display only (not comparable across seasons). */
 function fallbackLowerBetter(player: number, badAt: number): number {
   if (!Number.isFinite(player)) return 50
@@ -174,7 +182,7 @@ function HittingCharts({
         title="Rate stats"
         hint={showLeague ? 'Green line = season average (qualified hitters, same AB cutoff as leaderboards).' : undefined}
       >
-        <div className="h-64 w-full">
+        <div className="h-64 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={rate} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
@@ -207,7 +215,7 @@ function HittingCharts({
         title="Counting stats"
         hint={showLeague ? 'Green line = mean counting stats among qualified hitters.' : undefined}
       >
-        <div className="h-64 w-full">
+        <div className="h-64 w-full min-w-0">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={counting} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={GRID} vertical={false} />
@@ -336,7 +344,9 @@ function PitchingCharts({
     })
   }
 
-  if (rows.length < 3) {
+  const radarRows = sortPitchingRadarRows(rows)
+
+  if (radarRows.length < 3) {
     return (
       <p className="text-sm text-white/85">
         Not enough pitching stats to draw a radar (need at least 3 categories).
@@ -345,14 +355,14 @@ function PitchingCharts({
   }
 
   const radarHint = hasLeague
-    ? 'Each axis is indexed vs qualified-pitcher season averages: 100 = league average. ERA/WHIP/L: lower raw is better (outward = better). IP/K/W: higher is better. L: fewer is better.'
+    ? 'Each axis is indexed vs qualified-pitcher season averages: 100 = league average. ERA/WHIP/L: lower raw is better (outward = better). IP/K/W: higher raw is better. W and L sit on opposite sides of the chart so the shape does not kink between them.'
     : 'League averages unavailable — rough scale per axis (for shape only).'
 
   return (
     <ChartBlock title="Pitching profile (radar)" hint={radarHint}>
-      <div className="h-80 w-full min-h-[280px]">
+      <div className="h-80 w-full min-h-[280px] min-w-0">
         <ResponsiveContainer width="100%" height="100%">
-          <RadarChart cx="50%" cy="52%" outerRadius="78%" data={rows}>
+          <RadarChart cx="50%" cy="52%" outerRadius="78%" data={radarRows}>
             <PolarGrid stroke={GRID} />
             <PolarAngleAxis dataKey="subject" tick={{ fill: AXIS, fontSize: 11 }} />
             <PolarRadiusAxis

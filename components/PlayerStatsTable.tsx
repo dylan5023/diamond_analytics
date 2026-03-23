@@ -110,7 +110,7 @@ export default function PlayerStatsTable({ hitters, pitchers }: Props) {
           <tbody>
             {sorted.map((player, i) => (
               <tr
-                key={player.player_id}
+                key={`${player.player_id}-${i}`}
                 className="border-b border-border/50 transition-colors hover:bg-surface"
               >
                 <td className="px-5 py-3 text-xs text-text-muted">{i + 1}</td>

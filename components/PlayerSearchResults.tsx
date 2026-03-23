@@ -51,9 +51,9 @@ export default function PlayerSearchResults({ results, loading, query, onSelectP
             </tr>
           </thead>
           <tbody>
-            {results.map(r => (
+            {results.map((r, i) => (
               <tr
-                key={r.player_id}
+                key={`${r.player_id}-${i}`}
                 role={onSelectPlayer ? 'button' : undefined}
                 tabIndex={onSelectPlayer ? 0 : undefined}
                 className={`border-b border-border/50 transition-colors hover:bg-surface ${

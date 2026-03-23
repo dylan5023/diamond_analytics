@@ -177,7 +177,7 @@ function HitterTable({
                 const t = leaderboardRowText
                 return (
                   <tr
-                    key={`${p.player_id}-${mode}`}
+                    key={`${p.player_id}-${mode}-${i}`}
                     role={onSelectPlayer ? 'button' : undefined}
                     tabIndex={onSelectPlayer ? 0 : undefined}
                     className={`${podiumRowClass(i)} ${leaderboardRowHoverClass(!!onSelectPlayer, i)} ${onSelectPlayer ? 'cursor-pointer' : ''}`}
@@ -258,7 +258,7 @@ function PitcherTable({
                 const t = leaderboardRowText
                 return (
                   <tr
-                    key={`${p.player_id}-${mode}`}
+                    key={`${p.player_id}-${mode}-${i}`}
                     role={onSelectPlayer ? 'button' : undefined}
                     tabIndex={onSelectPlayer ? 0 : undefined}
                     className={`${podiumRowClass(i)} ${leaderboardRowHoverClass(!!onSelectPlayer, i)} ${onSelectPlayer ? 'cursor-pointer' : ''}`}

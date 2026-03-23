@@ -1266,7 +1266,7 @@ function BoxTable({
             <tbody>
               {rows.map((row, i) => (
                 <tr
-                  key={`${row.player_id}-h`}
+                  key={`${row.player_id}-h-${i}`}
                   className={`transition-colors hover:bg-white/[0.06] ${i % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}
                 >
                   <td className="px-3 py-2.5">
@@ -1316,7 +1316,7 @@ function BoxTable({
           <tbody>
             {rows.map((row, i) => (
               <tr
-                key={`${row.player_id}-p`}
+                key={`${row.player_id}-p-${i}`}
                 className={`transition-colors hover:bg-white/[0.06] ${i % 2 === 0 ? 'bg-white/[0.02]' : 'bg-transparent'}`}
               >
                 <td className="px-3 py-2.5">
