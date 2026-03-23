@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { mockNewsArticles } from '@/lib/mock-data'
 import { topNewsCalendarDate } from '@/lib/top-news-calendar'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'fs'
 import { join } from 'path'
 
 const USE_KV = !!process.env.KV_REST_API_URL
@@ -28,7 +28,6 @@ function getArticlesForDate(date: string) {
 
 function getLatestLocalDate(): string | null {
   ensureDir()
-  const { readdirSync } = require('fs') as typeof import('fs')
   const files = readdirSync(NEWS_DIR)
     .filter((f: string) => f.endsWith('.json'))
     .map((f: string) => f.replace('.json', ''))
