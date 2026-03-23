@@ -179,9 +179,10 @@ function resolveHomeAwayTeamIds(
   ]
   if (fromBox.length === 2) {
     if (awayTid != null && homeTid == null) {
-      homeTid = fromBox.find(id => id !== awayTid) ?? null
-    } else if (homeTid != null && awayTid == null) {
-      awayTid = fromBox.find(id => id !== homeTid) ?? null
+      return { away: awayTid, home: fromBox.find(id => id !== awayTid) ?? null }
+    }
+    if (homeTid != null && awayTid == null) {
+      return { away: fromBox.find(id => id !== homeTid) ?? null, home: homeTid }
     }
   }
   return { away: awayTid, home: homeTid }
