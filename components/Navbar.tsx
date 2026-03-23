@@ -22,7 +22,16 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-[#3a3a3a] bg-[#2a2a2a]/90 backdrop-blur-xl">
       <div className="mx-auto flex h-16 w-full items-center justify-between px-6 lg:px-10 xl:px-14">
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5"
+          onClick={e => {
+            if (pathname === '/') {
+              e.preventDefault()
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }
+          }}
+        >
           <Image
             src="/icon-192.png"
             alt="Diamond Analytics"

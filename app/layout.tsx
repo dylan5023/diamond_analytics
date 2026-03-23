@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { IBM_Plex_Sans, Barlow_Condensed } from 'next/font/google'
 import Navbar from '@/components/Navbar'
 import ChatButton from '@/components/ChatButton'
@@ -49,7 +50,10 @@ export default function RootLayout({
         <footer className="border-t border-[#3a3a3a] bg-[#2a2a2a]">
           <div className="mx-auto w-full px-6 py-6 lg:px-10 xl:px-14">
             <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
-              <div className="flex items-center gap-2.5">
+              <Link
+                href="/"
+                className="flex items-center gap-2.5 transition-opacity hover:opacity-90"
+              >
                 <img
                   src="/icon-192.png"
                   alt="Diamond Analytics"
@@ -60,7 +64,7 @@ export default function RootLayout({
                 <span className="font-heading text-sm font-semibold text-[#f0f0f0]">
                   Diamond Analytics
                 </span>
-              </div>
+              </Link>
               <div className="flex flex-col items-center gap-1 md:items-end">
                 <p className="text-xs text-[#a0a0a0]">
                   Powered by n8n automation & real-time MLB data. Not affiliated with MLB.

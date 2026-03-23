@@ -42,6 +42,17 @@ function formatFinalDateLabel(ymd: string): string {
   })
 }
 
+function normalizeTeamSearchQuery(raw: string): string {
+  return raw.trim().toLowerCase()
+}
+
+function gameMatchesTeamSearch(game: GameSnapshot, q: string): boolean {
+  if (!q) return true
+  const a = game.away_team.toLowerCase()
+  const h = game.home_team.toLowerCase()
+  return a.includes(q) || h.includes(q)
+}
+
 /** Latest row per game_pk (by updated_at). */
 function dedupeLatestByGamePk(rows: GameSnapshot[]): GameSnapshot[] {
   const map = new Map<number, GameSnapshot>()
@@ -63,6 +74,7 @@ function MLBPageInner() {
   const [error, setError] = useState<string | null>(null)
   const [selectedGame, setSelectedGame] = useState<GameSnapshot | null>(null)
   const [selectedPlayerId, setSelectedPlayerId] = useState<number | null>(null)
+  const [teamSearch, setTeamSearch] = useState('')
 
   const fetchGames = useCallback(async () => {
     try {
@@ -153,6 +165,21 @@ function MLBPageInner() {
   const liveGames = games.filter(g => g.status === 'Live')
   const scheduledGames = games.filter(g => g.status === 'Scheduled')
 
+  const teamSearchNorm = useMemo(() => normalizeTeamSearchQuery(teamSearch), [teamSearch])
+
+  const liveGamesFiltered = useMemo(
+    () => liveGames.filter(g => gameMatchesTeamSearch(g, teamSearchNorm)),
+    [liveGames, teamSearchNorm],
+  )
+  const scheduledGamesFiltered = useMemo(
+    () => scheduledGames.filter(g => gameMatchesTeamSearch(g, teamSearchNorm)),
+    [scheduledGames, teamSearchNorm],
+  )
+  const finalGamesForDateFiltered = useMemo(
+    () => finalGamesForSelectedDate.filter(g => gameMatchesTeamSearch(g, teamSearchNorm)),
+    [finalGamesForSelectedDate, teamSearchNorm],
+  )
+
   const gamesByPk = useMemo(() => {
     const merged = dedupeLatestByGamePk([...games, ...finalGamesAll])
     return new Map(merged.map(g => [g.game_pk, g]))
@@ -215,6 +242,25 @@ function MLBPageInner() {
             <p className="mt-3 max-w-lg text-[#94a3b8]">
               Check real-time scores and win probability for today&apos;s games.
             </p>
+            <div className="mt-6 max-w-md">
+              <label htmlFor="mlb-team-search" className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-[#64748b]">
+                Filter by team
+              </label>
+              <input
+                id="mlb-team-search"
+                type="search"
+                value={teamSearch}
+                onChange={e => setTeamSearch(e.target.value)}
+                placeholder="e.g. LAD, NYY, SF…"
+                autoComplete="off"
+                className="w-full rounded-xl border border-white/10 bg-[#1a1f2e] px-4 py-2.5 text-sm text-white placeholder:text-[#64748b] transition-colors focus:border-[#22c55e]/40 focus:outline-none focus:ring-1 focus:ring-[#22c55e]/30"
+              />
+              {teamSearchNorm ? (
+                <p className="mt-2 text-xs text-[#64748b]">
+                  Showing games where away or home team code contains &quot;{teamSearch.trim()}&quot;.
+                </p>
+              ) : null}
+            </div>
           </div>
         </FadeIn>
 
@@ -252,13 +298,20 @@ function MLBPageInner() {
                   <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#22c55e] animate-pulse" />
                   Live Games
                 </h2>
-                <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {liveGames.map(game => (
-                    <StaggerItem key={game.game_pk}>
-                      <LiveGameCard game={game} onOpen={() => setSelectedGame(game)} />
-                    </StaggerItem>
-                  ))}
-                </StaggerContainer>
+                {liveGamesFiltered.length === 0 ? (
+                  <p className="mb-12 text-sm text-[#94a3b8]">
+                    No live games match this team filter. Clear the search to see all {liveGames.length} live game
+                    {liveGames.length === 1 ? '' : 's'}.
+                  </p>
+                ) : (
+                  <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {liveGamesFiltered.map(game => (
+                      <StaggerItem key={game.game_pk}>
+                        <LiveGameCard game={game} onOpen={() => setSelectedGame(game)} />
+                      </StaggerItem>
+                    ))}
+                  </StaggerContainer>
+                )}
               </FadeInOnScroll>
             )}
 
@@ -267,13 +320,20 @@ function MLBPageInner() {
                 <h2 className="mb-4 font-heading text-xl font-bold text-white">
                   Upcoming & Scheduled
                 </h2>
-                <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {scheduledGames.map(game => (
-                    <StaggerItem key={game.game_pk}>
-                      <ScheduledGameCard game={game} onOpen={() => setSelectedGame(game)} />
-                    </StaggerItem>
-                  ))}
-                </StaggerContainer>
+                {scheduledGamesFiltered.length === 0 ? (
+                  <p className="mb-12 text-sm text-[#94a3b8]">
+                    No scheduled games match this team filter. Clear the search to see all {scheduledGames.length}{' '}
+                    game{scheduledGames.length === 1 ? '' : 's'}.
+                  </p>
+                ) : (
+                  <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {scheduledGamesFiltered.map(game => (
+                      <StaggerItem key={game.game_pk}>
+                        <ScheduledGameCard game={game} onOpen={() => setSelectedGame(game)} />
+                      </StaggerItem>
+                    ))}
+                  </StaggerContainer>
+                )}
               </FadeInOnScroll>
             )}
 
@@ -309,13 +369,20 @@ function MLBPageInner() {
                     </svg>
                   </div>
                 </div>
-                <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                  {finalGamesForSelectedDate.map(game => (
-                    <StaggerItem key={game.game_pk}>
-                      <FinalGameCard game={game} onOpen={() => setSelectedGame(game)} />
-                    </StaggerItem>
-                  ))}
-                </StaggerContainer>
+                {finalGamesForDateFiltered.length === 0 ? (
+                  <p className="mb-12 text-sm text-[#94a3b8]">
+                    No final games on this date match this team filter. Clear the search or pick another date (
+                    {finalGamesForSelectedDate.length} game{finalGamesForSelectedDate.length === 1 ? '' : 's'} hidden).
+                  </p>
+                ) : (
+                  <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                    {finalGamesForDateFiltered.map(game => (
+                      <StaggerItem key={game.game_pk}>
+                        <FinalGameCard game={game} onOpen={() => setSelectedGame(game)} />
+                      </StaggerItem>
+                    ))}
+                  </StaggerContainer>
+                )}
               </FadeInOnScroll>
             )}
 

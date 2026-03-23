@@ -333,6 +333,10 @@ function playToTooltipLine(p: MlbPlayByPlayPlay): {
   }
 }
 
+function inningPbpPinKey(isTopInning: boolean, inning: number) {
+  return `${isTopInning ? 't' : 'b'}-${inning}`
+}
+
 function GameLinescoreSection({
   row,
   game,
@@ -350,6 +354,17 @@ function GameLinescoreSection({
   const pbpCacheRef = useRef<MlbPlayByPlayPlay[] | null>(null)
   const pbpInflightRef = useRef<Promise<MlbPlayByPlayPlay[] | null> | null>(null)
   const hoverGenRef = useRef(0)
+  const linescoreTableRef = useRef<HTMLDivElement | null>(null)
+  const tooltipPanelRef = useRef<HTMLDivElement | null>(null)
+  const pbpTooltipRef = useRef<{
+    x: number
+    y: number
+    loading: boolean
+    lines: { batter: string; event: string; description: string; rbi: number }[]
+    label: string
+    pinned: boolean
+    pinKey: string
+  } | null>(null)
 
   const [pbpTooltip, setPbpTooltip] = useState<{
     x: number
@@ -357,7 +372,11 @@ function GameLinescoreSection({
     loading: boolean
     lines: { batter: string; event: string; description: string; rbi: number }[]
     label: string
+    pinned: boolean
+    pinKey: string
   } | null>(null)
+
+  pbpTooltipRef.current = pbpTooltip
 
   const loadPlayByPlay = useCallback(async (): Promise<MlbPlayByPlayPlay[] | null> => {
     if (pbpCacheRef.current !== null) return pbpCacheRef.current
@@ -380,48 +399,122 @@ function GameLinescoreSection({
     return p
   }, [game.game_pk])
 
-  const showInningPbp = useCallback(
-    async (e: React.MouseEvent, inning: number, isTopInning: boolean, runs: number | null, sideLabel: string) => {
+  const openInningPbp = useCallback(
+    async (
+      clientX: number,
+      clientY: number,
+      inning: number,
+      isTopInning: boolean,
+      runs: number | null,
+      sideLabel: string,
+      pinned: boolean
+    ) => {
       if (runs === null || runs <= 0) return
+      const pinKey = inningPbpPinKey(isTopInning, inning)
       const gen = ++hoverGenRef.current
-      const x = e.clientX
-      const y = e.clientY
+      const label = `${sideLabel} · Inning ${inning}`
       setPbpTooltip({
-        x,
-        y,
+        x: clientX,
+        y: clientY,
         loading: true,
         lines: [],
-        label: `${sideLabel} · Inning ${inning}`,
+        label,
+        pinned,
+        pinKey,
       })
       const plays = await loadPlayByPlay()
       if (gen !== hoverGenRef.current) return
       if (!plays?.length) {
-        setPbpTooltip({
-          x,
-          y,
-          loading: false,
-          lines: [],
-          label: `${sideLabel} · Inning ${inning}`,
+        setPbpTooltip(prev => {
+          if (gen !== hoverGenRef.current) return prev
+          if (!prev || prev.pinKey !== pinKey) return prev
+          return {
+            ...prev,
+            loading: false,
+            lines: [],
+            pinned: prev.pinned || pinned,
+          }
         })
         return
       }
       const filtered = filterScoringPlaysForHalfInning(plays, inning, isTopInning)
       const lines = filtered.map(playToTooltipLine)
-      setPbpTooltip({
-        x,
-        y,
-        loading: false,
-        lines,
-        label: `${sideLabel} · Inning ${inning}`,
+      setPbpTooltip(prev => {
+        if (gen !== hoverGenRef.current) return prev
+        if (!prev || prev.pinKey !== pinKey) return prev
+        return {
+          ...prev,
+          loading: false,
+          lines,
+          pinned: prev.pinned || pinned,
+        }
       })
     },
     [loadPlayByPlay]
   )
 
-  const hideInningPbp = useCallback(() => {
-    hoverGenRef.current += 1
-    setPbpTooltip(null)
+  const hideInningPbpIfNotPinned = useCallback(() => {
+    setPbpTooltip(prev => {
+      if (prev?.pinned) return prev
+      if (!prev) return prev
+      hoverGenRef.current += 1
+      return null
+    })
   }, [])
+
+  const handleInningCellEnter = useCallback(
+    (e: React.MouseEvent, inning: number, isTopInning: boolean, runs: number | null, sideLabel: string) => {
+      if (runs === null || runs <= 0) return
+      if (pbpTooltipRef.current?.pinned) return
+      void openInningPbp(e.clientX, e.clientY, inning, isTopInning, runs, sideLabel, false)
+    },
+    [openInningPbp]
+  )
+
+  const handleInningCellClick = useCallback(
+    (e: React.MouseEvent, inning: number, isTopInning: boolean, runs: number | null, sideLabel: string) => {
+      if (runs === null || runs <= 0) return
+      e.stopPropagation()
+      const pinKey = inningPbpPinKey(isTopInning, inning)
+      const prev = pbpTooltipRef.current
+      if (prev?.pinned && prev.pinKey === pinKey) {
+        hoverGenRef.current += 1
+        setPbpTooltip(null)
+        return
+      }
+      if (prev && !prev.pinned && prev.pinKey === pinKey) {
+        setPbpTooltip({ ...prev, pinned: true })
+        return
+      }
+      void openInningPbp(e.clientX, e.clientY, inning, isTopInning, runs, sideLabel, true)
+    },
+    [openInningPbp]
+  )
+
+  useEffect(() => {
+    if (!pbpTooltip?.pinned) return
+    const onDocMouseDown = (ev: MouseEvent) => {
+      const t = ev.target
+      if (!(t instanceof Node)) return
+      if (tooltipPanelRef.current?.contains(t)) return
+      if (linescoreTableRef.current?.contains(t)) return
+      hoverGenRef.current += 1
+      setPbpTooltip(null)
+    }
+    document.addEventListener('mousedown', onDocMouseDown)
+    return () => document.removeEventListener('mousedown', onDocMouseDown)
+  }, [pbpTooltip?.pinned])
+
+  useEffect(() => {
+    if (!pbpTooltip?.pinned) return
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key !== 'Escape') return
+      hoverGenRef.current += 1
+      setPbpTooltip(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [pbpTooltip?.pinned])
 
   const winner = row.winner_name?.trim() ?? ''
   const loser = row.loser_name?.trim() ?? ''
@@ -435,13 +528,30 @@ function GameLinescoreSection({
     pbpTooltip &&
     createPortal(
       <div
-        className="pointer-events-none fixed z-[300] max-h-[min(70vh,420px)] w-[min(calc(100vw-24px),340px)] overflow-y-auto rounded-xl border border-white/15 bg-[#141821] p-3 text-left shadow-2xl shadow-black/60"
+        ref={tooltipPanelRef}
+        className={`fixed z-[300] max-h-[min(70vh,420px)] w-[min(calc(100vw-24px),340px)] overflow-y-auto rounded-xl border border-white/15 bg-[#141821] p-3 text-left shadow-2xl shadow-black/60 ${pbpTooltip.pinned ? 'pointer-events-auto' : 'pointer-events-none'}`}
         style={{ left: Math.min(pbpTooltip.x + 12, typeof window !== 'undefined' ? window.innerWidth - 360 : 0), top: pbpTooltip.y + 12 }}
-        role="tooltip"
+        role={pbpTooltip.pinned ? 'dialog' : 'tooltip'}
+        aria-modal={pbpTooltip.pinned ? true : undefined}
       >
-        <p className="mb-2 border-b border-white/10 pb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-          {pbpTooltip.label}
-        </p>
+        <div className="mb-2 flex items-start justify-between gap-2 border-b border-white/10 pb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{pbpTooltip.label}</p>
+          {pbpTooltip.pinned ? (
+            <button
+              type="button"
+              onClick={() => {
+                hoverGenRef.current += 1
+                setPbpTooltip(null)
+              }}
+              className="shrink-0 rounded-md px-2 py-0.5 text-[11px] font-medium text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
+            >
+              Close
+            </button>
+          ) : null}
+        </div>
+        {pbpTooltip.pinned ? (
+          <p className="mb-2 text-[11px] leading-snug text-slate-500">Esc or click outside the linescore to dismiss.</p>
+        ) : null}
         {pbpTooltip.loading ? (
           <p className="text-sm text-slate-400">Loading…</p>
         ) : pbpTooltip.lines.length === 0 ? (
@@ -468,7 +578,11 @@ function GameLinescoreSection({
 
       {tooltipPortal}
 
-      <div className="overflow-x-auto rounded-xl border border-white/[0.1] bg-[#0f1117]">
+      <p className="text-xs text-slate-500">
+        Hover for a quick preview. Click a scoring inning cell to pin the panel (then Esc, Close, or click outside the table).
+      </p>
+
+      <div ref={linescoreTableRef} className="overflow-x-auto rounded-xl border border-white/[0.1] bg-[#0f1117]">
         <table className="w-full min-w-[520px] border-collapse text-left text-sm text-slate-200">
           <thead>
             <tr className="border-b border-white/[0.08] bg-[#252b3d] text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -495,9 +609,10 @@ function GameLinescoreSection({
                 return (
                   <td
                     key={n}
-                    className={`px-2 py-2.5 text-center tabular-nums text-slate-300 ${interactive ? 'cursor-help underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
-                    onMouseEnter={e => interactive && showInningPbp(e, n, true, runs, awayTeamLabel)}
-                    onMouseLeave={hideInningPbp}
+                    className={`px-2 py-2.5 text-center tabular-nums text-slate-300 ${interactive ? 'cursor-pointer underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
+                    onMouseEnter={e => interactive && handleInningCellEnter(e, n, true, runs, awayTeamLabel)}
+                    onMouseLeave={hideInningPbpIfNotPinned}
+                    onClick={e => interactive && handleInningCellClick(e, n, true, runs, awayTeamLabel)}
                   >
                     {linescoreCell(runs)}
                   </td>
@@ -522,9 +637,10 @@ function GameLinescoreSection({
                 return (
                   <td
                     key={n}
-                    className={`px-2 py-2.5 text-center tabular-nums text-slate-300 ${interactive ? 'cursor-help underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
-                    onMouseEnter={e => interactive && showInningPbp(e, n, false, runs, homeTeamLabel)}
-                    onMouseLeave={hideInningPbp}
+                    className={`px-2 py-2.5 text-center tabular-nums text-slate-300 ${interactive ? 'cursor-pointer underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
+                    onMouseEnter={e => interactive && handleInningCellEnter(e, n, false, runs, homeTeamLabel)}
+                    onMouseLeave={hideInningPbpIfNotPinned}
+                    onClick={e => interactive && handleInningCellClick(e, n, false, runs, homeTeamLabel)}
                   >
                     {linescoreCell(runs)}
                   </td>
@@ -594,6 +710,122 @@ function playerIdsMissingRosterName(boxRows: GameBoxscoreRow[], rosterRows: Team
   return [...need]
 }
 
+function normalizePlayerSearchQuery(raw: string): string {
+  return raw.trim().toLowerCase().replace(/\s+/g, ' ')
+}
+
+function rosterRowMatchesPlayerSearch(r: TeamRosterRow, q: string): boolean {
+  if (!q) return true
+  const blob = [r.full_name, r.position, r.jersey_number != null ? String(r.jersey_number) : '']
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+  return blob.includes(q)
+}
+
+function boxRowMatchesPlayerSearch(
+  row: GameBoxscoreRow,
+  nameByPlayerId: Map<number, string>,
+  posByPlayerId: Map<number, string>,
+  q: string
+): boolean {
+  if (!q) return true
+  const name = (nameByPlayerId.get(row.player_id) ?? '').toLowerCase()
+  const pos = (posByPlayerId.get(row.player_id) ?? '').toLowerCase()
+  const idStr = String(row.player_id)
+  return name.includes(q) || pos.includes(q) || idStr.includes(q)
+}
+
+function CollapsibleTeamLineup({
+  teamLabel,
+  roster,
+  expanded,
+  onToggle,
+  onPlayerClick,
+  panelId,
+  searchActive,
+  rosterTotalBeforeFilter,
+}: {
+  teamLabel: string
+  roster: TeamRosterRow[]
+  expanded: boolean
+  onToggle: () => void
+  onPlayerClick: (playerId: number) => void
+  panelId: string
+  searchActive?: boolean
+  rosterTotalBeforeFilter?: number
+}) {
+  const total = rosterTotalBeforeFilter ?? roster.length
+  const countLabel = (() => {
+    if (searchActive && total > 0) {
+      return roster.length === 1 ? '1 match' : `${roster.length} matches`
+    }
+    if (roster.length === 0) return 'No roster data'
+    return `${roster.length} ${roster.length === 1 ? 'player' : 'players'}`
+  })()
+
+  return (
+    <div className="rounded-2xl border border-white/[0.1] bg-[#0f1117] p-4 sm:p-5">
+      <button
+        type="button"
+        id={`${panelId}-trigger`}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        onClick={onToggle}
+        className="flex w-full items-center justify-between gap-3 rounded-lg text-left outline-none ring-[#facc15]/40 transition-colors hover:bg-white/[0.04] focus-visible:ring-2"
+      >
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`shrink-0 text-slate-400 transition-transform duration-200 ${expanded ? 'rotate-0' : '-rotate-90'}`}
+            aria-hidden
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+          <span className="font-heading text-base font-semibold text-[#facc15]">{teamLabel}</span>
+        </span>
+        <span className="shrink-0 text-xs tabular-nums text-slate-500">{countLabel}</span>
+      </button>
+      <div
+        id={panelId}
+        role="region"
+        aria-labelledby={`${panelId}-trigger`}
+        hidden={!expanded}
+        className="mt-4"
+      >
+        <ul className="space-y-0 divide-y divide-white/[0.06]">
+          {roster.length === 0 && (
+            <li className="py-3 text-sm text-slate-500">
+              {searchActive && total > 0 ? 'No players match your search.' : 'No roster data'}
+            </li>
+          )}
+          {roster.map(r => (
+            <li key={rosterKey(r)} className="flex items-center justify-between gap-3 py-3 first:pt-0">
+              <button
+                type="button"
+                onClick={() => onPlayerClick(r.player_id)}
+                className="min-w-0 flex-1 text-left text-base font-medium text-slate-100 transition-colors hover:text-[#facc15]"
+              >
+                {r.full_name}
+              </button>
+              <span className="shrink-0 text-sm tabular-nums text-slate-400">
+                {r.position ?? '—'} · #{r.jersey_number ?? '—'}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+
 export default function GameDetailModal({ game, onClose, onPlayerClick }: Props) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -607,6 +839,9 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
   /** Names from MLB Stats API for players missing from `team_rosters` (e.g. spring roster gaps). */
   const [mlbNameByPlayerId, setMlbNameByPlayerId] = useState<Record<number, string>>({})
   const [linescore, setLinescore] = useState<GameLinescoreRow | null>(null)
+  const [awayLineupOpen, setAwayLineupOpen] = useState(false)
+  const [homeLineupOpen, setHomeLineupOpen] = useState(false)
+  const [playerSearchQuery, setPlayerSearchQuery] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -616,6 +851,9 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
       setResolvedGameTeamIds({ away: null, home: null })
       setMlbNameByPlayerId({})
       setLinescore(null)
+      setAwayLineupOpen(false)
+      setHomeLineupOpen(false)
+      setPlayerSearchQuery('')
       try {
         const rosterAbbrs = [...new Set([toRosterTeamAbbr(game.away_team), toRosterTeamAbbr(game.home_team)].filter(Boolean))]
 
@@ -753,7 +991,45 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
   const homeHitters = homeBox.filter(b => b.stat_group === 'hitting')
   const homePitchers = homeBox.filter(b => b.stat_group === 'pitching')
 
-  const title = `${game.away_team} @ ${game.home_team}`
+  const playerSearchNorm = useMemo(() => normalizePlayerSearchQuery(playerSearchQuery), [playerSearchQuery])
+
+  const awayRosterFiltered = useMemo(() => {
+    if (!playerSearchNorm) return awayRoster
+    return awayRoster.filter(r => rosterRowMatchesPlayerSearch(r, playerSearchNorm))
+  }, [awayRoster, playerSearchNorm])
+
+  const homeRosterFiltered = useMemo(() => {
+    if (!playerSearchNorm) return homeRoster
+    return homeRoster.filter(r => rosterRowMatchesPlayerSearch(r, playerSearchNorm))
+  }, [homeRoster, playerSearchNorm])
+
+  const awayHittersFiltered = useMemo(() => {
+    if (!playerSearchNorm) return awayHitters
+    return awayHitters.filter(b => boxRowMatchesPlayerSearch(b, nameByPlayerId, posByPlayerId, playerSearchNorm))
+  }, [awayHitters, nameByPlayerId, posByPlayerId, playerSearchNorm])
+
+  const awayPitchersFiltered = useMemo(() => {
+    if (!playerSearchNorm) return awayPitchers
+    return awayPitchers.filter(b => boxRowMatchesPlayerSearch(b, nameByPlayerId, posByPlayerId, playerSearchNorm))
+  }, [awayPitchers, nameByPlayerId, posByPlayerId, playerSearchNorm])
+
+  const homeHittersFiltered = useMemo(() => {
+    if (!playerSearchNorm) return homeHitters
+    return homeHitters.filter(b => boxRowMatchesPlayerSearch(b, nameByPlayerId, posByPlayerId, playerSearchNorm))
+  }, [homeHitters, nameByPlayerId, posByPlayerId, playerSearchNorm])
+
+  const homePitchersFiltered = useMemo(() => {
+    if (!playerSearchNorm) return homePitchers
+    return homePitchers.filter(b => boxRowMatchesPlayerSearch(b, nameByPlayerId, posByPlayerId, playerSearchNorm))
+  }, [homePitchers, nameByPlayerId, posByPlayerId, playerSearchNorm])
+
+  useEffect(() => {
+    if (!playerSearchNorm) return
+    if (awayRosterFiltered.length > 0) setAwayLineupOpen(true)
+    if (homeRosterFiltered.length > 0) setHomeLineupOpen(true)
+  }, [playerSearchNorm, awayRosterFiltered.length, homeRosterFiltered.length])
+
+  const title = `${game.away_team} vs ${game.home_team}`
   const finalOutcome = isFinalStatus(game.status) ? getFinalOutcome(game) : null
   const awayWon = finalOutcome?.kind === 'winner' && finalOutcome.side === 'away'
   const homeWon = finalOutcome?.kind === 'winner' && finalOutcome.side === 'home'
@@ -792,7 +1068,7 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
                     {game.away_score}
                   </p>
                 </div>
-                <span className="text-sm font-medium text-slate-500">@</span>
+                <span className="text-sm font-medium text-slate-500">vs</span>
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Home</p>
                   <p
@@ -839,63 +1115,58 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
           )}
 
           <section>
-            <h3 className="mb-1 font-heading text-lg font-semibold text-white">Lineups</h3>
-            <p className="mb-5 text-sm text-slate-400">Tap a player to open their profile and stats.</p>
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/[0.1] bg-[#0f1117] p-4 sm:p-5">
-                <p className="mb-4 border-b border-white/[0.08] pb-3 font-heading text-base font-semibold text-[#facc15]">
-                  {game.away_team}
+            <h3 className="mb-1 font-heading text-lg font-semibold text-white">Lineups & box score</h3>
+            <p className="mb-3 text-sm text-slate-400">
+              Expand a team to see its roster. Tap a player to open their profile and stats.
+            </p>
+            <div className="mb-5">
+              <label htmlFor={`player-search-${game.game_pk}`} className="sr-only">
+                Search players in this game
+              </label>
+              <input
+                id={`player-search-${game.game_pk}`}
+                type="search"
+                value={playerSearchQuery}
+                onChange={e => setPlayerSearchQuery(e.target.value)}
+                placeholder="Search players (name, position, number)…"
+                autoComplete="off"
+                className="w-full rounded-xl border-2 border-[#facc15]/40 bg-[#1a1f2e] px-4 py-2.5 text-sm text-white placeholder:text-slate-500 transition-colors focus:border-[#facc15] focus:outline-none focus:ring-2 focus:ring-[#facc15]/35"
+              />
+              {playerSearchNorm ? (
+                <p className="mt-2 text-xs text-slate-500">
+                  Filtering lineups and batting / pitching tables. Clear the field to show everyone.
                 </p>
-                <ul className="space-y-0 divide-y divide-white/[0.06]">
-                  {awayRoster.length === 0 && (
-                    <li className="py-3 text-sm text-slate-500">No roster data</li>
-                  )}
-                  {awayRoster.map(r => (
-                    <li key={rosterKey(r)} className="flex items-center justify-between gap-3 py-3 first:pt-0">
-                      <button
-                        type="button"
-                        onClick={() => onPlayerClick(r.player_id)}
-                        className="min-w-0 flex-1 text-left text-base font-medium text-slate-100 transition-colors hover:text-[#facc15]"
-                      >
-                        {r.full_name}
-                      </button>
-                      <span className="shrink-0 text-sm tabular-nums text-slate-400">
-                        {r.position ?? '—'} · #{r.jersey_number ?? '—'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div className="rounded-2xl border border-white/[0.1] bg-[#0f1117] p-4 sm:p-5">
-                <p className="mb-4 border-b border-white/[0.08] pb-3 font-heading text-base font-semibold text-[#facc15]">
-                  {game.home_team}
-                </p>
-                <ul className="space-y-0 divide-y divide-white/[0.06]">
-                  {homeRoster.length === 0 && (
-                    <li className="py-3 text-sm text-slate-500">No roster data</li>
-                  )}
-                  {homeRoster.map(r => (
-                    <li key={rosterKey(r)} className="flex items-center justify-between gap-3 py-3 first:pt-0">
-                      <button
-                        type="button"
-                        onClick={() => onPlayerClick(r.player_id)}
-                        className="min-w-0 flex-1 text-left text-base font-medium text-slate-100 transition-colors hover:text-[#facc15]"
-                      >
-                        {r.full_name}
-                      </button>
-                      <span className="shrink-0 text-sm tabular-nums text-slate-400">
-                        {r.position ?? '—'} · #{r.jersey_number ?? '—'}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              ) : null}
+            </div>
+            <div className="grid items-start gap-5 md:grid-cols-2">
+              <CollapsibleTeamLineup
+                teamLabel={game.away_team}
+                roster={awayRosterFiltered}
+                expanded={awayLineupOpen}
+                onToggle={() => setAwayLineupOpen(v => !v)}
+                onPlayerClick={onPlayerClick}
+                panelId={`lineup-away-${game.game_pk}`}
+                searchActive={Boolean(playerSearchNorm)}
+                rosterTotalBeforeFilter={awayRoster.length}
+              />
+              <CollapsibleTeamLineup
+                teamLabel={game.home_team}
+                roster={homeRosterFiltered}
+                expanded={homeLineupOpen}
+                onToggle={() => setHomeLineupOpen(v => !v)}
+                onPlayerClick={onPlayerClick}
+                panelId={`lineup-home-${game.game_pk}`}
+                searchActive={Boolean(playerSearchNorm)}
+                rosterTotalBeforeFilter={homeRoster.length}
+              />
             </div>
           </section>
 
           <BoxTable
             label={`${game.away_team} — Batters`}
-            rows={awayHitters}
+            rows={awayHittersFiltered}
+            unfilteredRowCount={awayHitters.length}
+            searchActive={Boolean(playerSearchNorm)}
             type="hitting"
             nameByPlayerId={nameByPlayerId}
             posByPlayerId={posByPlayerId}
@@ -903,7 +1174,9 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
           />
           <BoxTable
             label={`${game.away_team} — Pitchers`}
-            rows={awayPitchers}
+            rows={awayPitchersFiltered}
+            unfilteredRowCount={awayPitchers.length}
+            searchActive={Boolean(playerSearchNorm)}
             type="pitching"
             nameByPlayerId={nameByPlayerId}
             posByPlayerId={posByPlayerId}
@@ -911,7 +1184,9 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
           />
           <BoxTable
             label={`${game.home_team} — Batters`}
-            rows={homeHitters}
+            rows={homeHittersFiltered}
+            unfilteredRowCount={homeHitters.length}
+            searchActive={Boolean(playerSearchNorm)}
             type="hitting"
             nameByPlayerId={nameByPlayerId}
             posByPlayerId={posByPlayerId}
@@ -919,7 +1194,9 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
           />
           <BoxTable
             label={`${game.home_team} — Pitchers`}
-            rows={homePitchers}
+            rows={homePitchersFiltered}
+            unfilteredRowCount={homePitchers.length}
+            searchActive={Boolean(playerSearchNorm)}
             type="pitching"
             nameByPlayerId={nameByPlayerId}
             posByPlayerId={posByPlayerId}
@@ -934,6 +1211,8 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
 function BoxTable({
   label,
   rows,
+  unfilteredRowCount,
+  searchActive,
   type,
   nameByPlayerId,
   posByPlayerId,
@@ -941,16 +1220,22 @@ function BoxTable({
 }: {
   label: string
   rows: GameBoxscoreRow[]
+  unfilteredRowCount?: number
+  searchActive?: boolean
   type: 'hitting' | 'pitching'
   nameByPlayerId: Map<number, string>
   posByPlayerId: Map<number, string>
   onPlayerClick: (id: number) => void
 }) {
+  const baseCount = unfilteredRowCount ?? rows.length
   if (rows.length === 0) {
+    const searchMiss = Boolean(searchActive && baseCount > 0)
     return (
       <section>
         <h3 className="mb-1 font-heading text-base font-semibold text-white">{label}</h3>
-        <p className="text-sm text-slate-500">No stats for this game yet.</p>
+        <p className="text-sm text-slate-500">
+          {searchMiss ? 'No players match your search.' : 'No stats for this game yet.'}
+        </p>
       </section>
     )
   }

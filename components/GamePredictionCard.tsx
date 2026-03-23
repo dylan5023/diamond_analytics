@@ -46,7 +46,7 @@ export default function GamePredictionCard({ game }: Props) {
             <span className="font-heading text-sm font-semibold text-text-secondary">{game.away_team}</span>
             <span className="font-heading text-3xl font-extrabold tabular-nums">{game.away_score}</span>
           </div>
-          <span className="text-xs font-medium text-text-muted">VS</span>
+          <span className="text-xs font-medium text-text-muted">vs</span>
           <div className="flex flex-col items-end">
             <span className="font-heading text-sm font-semibold text-text-secondary">{game.home_team}</span>
             <span className="font-heading text-3xl font-extrabold tabular-nums">{game.home_score}</span>

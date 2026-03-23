@@ -81,7 +81,7 @@ export default function FinalGameCard({ game, onOpen }: Props) {
               {game.away_score}
             </span>
           </div>
-          <span className="text-sm font-medium text-[#94a3b8]">@</span>
+          <span className="text-sm font-medium text-[#94a3b8]">vs</span>
           <div className="flex flex-col items-end">
             <span
               className={`font-heading text-2xl font-bold ${homeWon ? 'text-[#facc15]' : 'text-white'}`}

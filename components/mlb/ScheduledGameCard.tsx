@@ -58,7 +58,7 @@ export default function ScheduledGameCard({ game, onOpen }: Props) {
               {game.away_score}
             </span>
           </div>
-          <span className="text-sm font-medium text-[#94a3b8]">VS</span>
+          <span className="text-sm font-medium text-[#94a3b8]">vs</span>
           <div className="flex flex-col items-end">
             <span className="font-heading text-2xl font-bold text-white">{game.home_team}</span>
             <span className="font-heading text-4xl font-bold tabular-nums text-white">
