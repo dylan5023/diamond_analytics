@@ -229,7 +229,7 @@ function MLBPageInner() {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#0f1117' }}>
-      <div className="mx-auto max-w-7xl px-6 py-12">
+      <div className="mx-auto max-w-screen-2xl px-6 py-12 sm:px-8 lg:px-10">
         <FadeIn>
           <div className="mb-12">
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-[#22c55e]/30 bg-[#22c55e]/10 px-3 py-1 text-xs font-medium text-[#22c55e]">
@@ -266,11 +266,11 @@ function MLBPageInner() {
 
         {loading && (
           <div className="space-y-8">
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 md:gap-8">
               {[...Array(6)].map((_, i) => (
                 <div
                   key={i}
-                  className="h-52 animate-pulse rounded-xl"
+                  className="h-64 animate-pulse rounded-2xl"
                   style={{ backgroundColor: '#1a1f2e', border: '1px solid rgba(255,255,255,0.08)' }}
                 />
               ))}
@@ -294,7 +294,7 @@ function MLBPageInner() {
           <>
             {liveGames.length > 0 && (
               <FadeInOnScroll>
-                <h2 className="mb-4 font-heading text-xl font-bold text-white">
+                <h2 className="mb-5 font-heading text-2xl font-bold text-white">
                   <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full bg-[#22c55e] animate-pulse" />
                   Live Games
                 </h2>
@@ -304,7 +304,7 @@ function MLBPageInner() {
                     {liveGames.length === 1 ? '' : 's'}.
                   </p>
                 ) : (
-                  <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <StaggerContainer className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 md:gap-8">
                     {liveGamesFiltered.map(game => (
                       <StaggerItem key={game.game_pk}>
                         <LiveGameCard game={game} onOpen={() => setSelectedGame(game)} />
@@ -317,7 +317,7 @@ function MLBPageInner() {
 
             {scheduledGames.length > 0 && (
               <FadeInOnScroll>
-                <h2 className="mb-4 font-heading text-xl font-bold text-white">
+                <h2 className="mb-5 font-heading text-2xl font-bold text-white">
                   Upcoming & Scheduled
                 </h2>
                 {scheduledGamesFiltered.length === 0 ? (
@@ -326,7 +326,7 @@ function MLBPageInner() {
                     game{scheduledGames.length === 1 ? '' : 's'}.
                   </p>
                 ) : (
-                  <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <StaggerContainer className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 md:gap-8">
                     {scheduledGamesFiltered.map(game => (
                       <StaggerItem key={game.game_pk}>
                         <ScheduledGameCard game={game} onOpen={() => setSelectedGame(game)} />
@@ -339,9 +339,9 @@ function MLBPageInner() {
 
             {!finalsLoading && finalDatesDesc.length > 0 && (
               <FadeInOnScroll>
-                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                  <h2 className="font-heading text-xl font-bold text-white">Final</h2>
-                  <div className="relative max-w-xs">
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <h2 className="font-heading text-2xl font-bold text-white">Final</h2>
+                  <div className="relative max-w-sm">
                     <label htmlFor="mlb-final-date" className="sr-only">
                       Final games by date
                     </label>
@@ -349,7 +349,7 @@ function MLBPageInner() {
                       id="mlb-final-date"
                       value={selectedFinalDate ?? finalDatesDesc[0]}
                       onChange={e => setSelectedFinalDate(e.target.value)}
-                      className="w-full appearance-none rounded-lg border border-white/10 bg-[#1a1f2e] px-4 py-2.5 pr-9 text-sm font-medium text-white transition-colors hover:border-[#22c55e]/35 focus:border-[#22c55e]/50 focus:outline-none"
+                      className="w-full appearance-none rounded-lg border border-white/10 bg-[#1a1f2e] px-4 py-3 pr-9 text-base font-medium text-white transition-colors hover:border-[#22c55e]/35 focus:border-[#22c55e]/50 focus:outline-none"
                     >
                       {finalDatesDesc.map(d => (
                         <option key={d} value={d}>
@@ -375,7 +375,7 @@ function MLBPageInner() {
                     {finalGamesForSelectedDate.length} game{finalGamesForSelectedDate.length === 1 ? '' : 's'} hidden).
                   </p>
                 ) : (
-                  <StaggerContainer className="mb-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <StaggerContainer className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 md:gap-8">
                     {finalGamesForDateFiltered.map(game => (
                       <StaggerItem key={game.game_pk}>
                         <FinalGameCard game={game} onOpen={() => setSelectedGame(game)} />

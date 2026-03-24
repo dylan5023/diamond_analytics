@@ -11,10 +11,20 @@ export default function GamePredictionCard({ game }: Props) {
   const isLive = game.status === 'Live'
   const isScheduled = game.status === 'Scheduled'
 
+  const homeProb = +game.win_probability.toFixed(4)
+  const awayProb = +(1 - game.win_probability).toFixed(4)
   const probData = [
-    { name: game.away_team, value: +(1 - game.win_probability).toFixed(2) },
-    { name: game.home_team, value: +game.win_probability.toFixed(2) },
-  ]
+    {
+      name: game.away_team,
+      value: awayProb,
+      highlight: awayProb >= homeProb,
+    },
+    {
+      name: game.home_team,
+      value: homeProb,
+      highlight: homeProb >= awayProb,
+    },
+  ] as const
 
   return (
     <div className="glass-card overflow-hidden">
@@ -63,9 +73,18 @@ export default function GamePredictionCard({ game }: Props) {
                 <XAxis type="number" domain={[0, 1]} hide />
                 <YAxis type="category" dataKey="name" width={32} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]} maxBarSize={16}>
-                  <Cell fill="rgba(148, 163, 184, 0.3)" />
-                  <Cell fill="#c9a84c" />
-                  <LabelList dataKey="value" position="right" formatter={(v: string | number | boolean | null | undefined) => v != null ? `${(Number(v) * 100).toFixed(0)}%` : ''} style={{ fontSize: 10, fill: '#94a3b8' }} />
+                  {probData.map((row, i) => (
+                    <Cell key={i} fill={row.highlight ? '#c9a84c' : 'rgba(148, 163, 184, 0.35)'} />
+                  ))}
+                  <LabelList
+                    dataKey="value"
+                    position="right"
+                    formatter={(v: string | number | boolean | null | undefined) =>
+                      v != null ? `${(Number(v) * 100).toFixed(0)}%` : ''
+                    }
+                    style={{ fontSize: 10 }}
+                    fill="#e2e8f0"
+                  />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
