@@ -58,12 +58,17 @@ const features = [
     ),
   },
   {
-    title: 'Gear Word Cloud',
-    description: 'Visual word frequency map from thousands of baseball gear reviews across the web.',
-    href: '/word-cloud',
+    title: 'Gear Recommendations',
+    description: 'Position-specific glove, bat, cleats, and helmet picks with retailer links and short rationale.',
+    href: '/gear-recommendations',
     icon: (
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
+        <path d="M7 4v3l2-1 2 1V4" />
+        <path d="M9 6v15" />
+        <path d="m13 15 3-3 4 4-3 3" />
+        <path d="M14 18.87 17.13 16" />
+        <path d="M16 12.35 19.35 16" />
+        <path d="M19 11h2v2" />
       </svg>
     ),
   },

@@ -3,6 +3,11 @@ import path from "path";
 
 const nextConfig: NextConfig = {
   devIndicators: false,
+  logging: {
+    incomingRequests: {
+      ignore: [/\/api\/gear\/thumb-proxy/],
+    },
+  },
   turbopack: {
     root: path.resolve(process.cwd()),
   },

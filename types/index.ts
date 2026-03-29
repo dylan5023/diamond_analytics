@@ -106,9 +106,32 @@ export interface DashboardLeaderboards {
   }
 }
 
-export interface WordFrequency {
-  text: string
-  value: number
+/** `position_gear_recommendations.recommended_products` JSON elements */
+export interface RecommendedGearProduct {
+  product_name: string
+  brand: string
+  price: number
+  rating: number | null
+  thumbnail: string
+  source_url: string
+  reason: string
+  /** e.g. budget | mid-range | premium */
+  price_range?: string
+  key_features?: string[]
+  review_count?: number | null
+  /** e.g. beginner | intermediate | professional */
+  target_level?: string
+}
+
+/** `position_gear_recommendations` row */
+export interface PositionGearRecommendationRow {
+  id: number
+  position: string
+  position_label: string
+  gear_category: string
+  /** Supabase/PostgREST may return a JSON string if the column is `text` instead of `jsonb`. */
+  recommended_products: RecommendedGearProduct[] | string
+  updated_at: string
 }
 
 export interface PlayerSearchResult {

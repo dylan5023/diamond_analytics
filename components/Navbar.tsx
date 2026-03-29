@@ -12,7 +12,7 @@ const navLinks = [
   { href: '/blogs', label: 'Blog' },
   { href: '/top-news', label: 'Top News' },
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/word-cloud', label: 'Word Cloud' },
+  { href: '/gear-recommendations', label: 'Gear' },
 ]
 
 export default function Navbar() {
