@@ -1,5 +1,33 @@
 import type { GameSnapshot } from '@/types'
 
+/** Display game status in English (handles mixed DB values). Korean keys use \\u escapes (ASCII-only source). */
+export function gameStatusEn(status: string | undefined | null): string {
+  const s = status?.trim() ?? ''
+  const map: Record<string, string> = {
+    Live: 'Live',
+    Scheduled: 'Scheduled',
+    Final: 'Final',
+    Cancelled: 'Cancelled',
+    Canceled: 'Canceled',
+    Postponed: 'Postponed',
+    InProgress: 'Live',
+    'In Progress': 'Live',
+    Pregame: 'Scheduled',
+    PreGame: 'Scheduled',
+    Warmup: 'Scheduled',
+    Preview: 'Scheduled',
+    // Korean API values (\u escapes)
+    '\uC9C4\uD589': 'Live',
+    '\uC9C4\uD589\uC911': 'Live',
+    '\uC9C4\uD589 \uC911': 'Live',
+    '\uC608\uC815': 'Scheduled',
+    '\uC885\uB8CC': 'Final',
+    '\uCDE8\uC18C': 'Cancelled',
+    '\uC5F0\uAE30': 'Postponed',
+  }
+  return map[s] ?? s
+}
+
 /** DB/API may use English or Korean for completed games */
 export function isFinalStatus(status: string | undefined | null): boolean {
   const s = status?.trim() ?? ''

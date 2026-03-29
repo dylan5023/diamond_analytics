@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { getFinalOutcome, isFinalStatus } from '@/lib/mlb-game'
+import { fetchLiveLinescoreFromMlb, fetchLiveLinescoreHighlightFromMlb } from '@/lib/mlb-stats-linescore'
+import { gameStatusEn, getFinalOutcome, isFinalStatus } from '@/lib/mlb-game'
 import { supabase } from '@/lib/supabase'
 import type { GameSnapshot } from '@/types'
 import type { TeamRosterRow, GameBoxscoreRow, GameLinescoreRow } from '@/types/mlb'
@@ -26,33 +27,6 @@ const TEAM_ABBR_MAP: Record<string, string> = {
 
 function toRosterTeamAbbr(snapshotAbbr: string): string {
   return TEAM_ABBR_MAP[snapshotAbbr] ?? snapshotAbbr
-}
-
-/** Display game status in English (handles mixed DB values). Korean keys use \\u escapes (ASCII-only source). */
-function gameStatusEn(status: string): string {
-  const s = status?.trim() ?? ''
-  const map: Record<string, string> = {
-    Live: 'Live',
-    Scheduled: 'Scheduled',
-    Final: 'Final',
-    Cancelled: 'Cancelled',
-    Canceled: 'Canceled',
-    Postponed: 'Postponed',
-    InProgress: 'Live',
-    Pregame: 'Scheduled',
-    PreGame: 'Scheduled',
-    Warmup: 'Scheduled',
-    Preview: 'Scheduled',
-    // Korean API values (\u escapes)
-    '\uC9C4\uD589': 'Live',
-    '\uC9C4\uD589\uC911': 'Live',
-    '\uC9C4\uD589 \uC911': 'Live',
-    '\uC608\uC815': 'Scheduled',
-    '\uC885\uB8CC': 'Final',
-    '\uCDE8\uC18C': 'Cancelled',
-    '\uC5F0\uAE30': 'Postponed',
-  }
-  return map[s] ?? s
 }
 
 /** DISTINCT(team_id, team_abbr) equivalent: first team_id wins per abbreviation. */
@@ -279,6 +253,25 @@ function linescoreInningColumnNums(byNum: Map<number, { home: number | null; awa
 }
 
 /** null / missing → '-' per spec */
+/** Live game: highlight the inning column MLB reports as current (stronger on the batting half). */
+function liveInningColumnClass(
+  inningNum: number,
+  liveInning: number | null | undefined,
+  halfTop: boolean | null | undefined,
+  role: 'header' | 'away' | 'home'
+): string {
+  if (liveInning == null || inningNum !== liveInning) return ''
+  if (role === 'header') return 'bg-amber-500/25 text-amber-100'
+  const activeHalf =
+    halfTop === null ||
+    (halfTop === true && role === 'away') ||
+    (halfTop === false && role === 'home')
+  if (activeHalf) {
+    return 'bg-amber-500/[0.22] text-amber-50 shadow-[inset_0_0_0_1px_rgba(251,191,36,0.38)]'
+  }
+  return 'bg-amber-500/10 text-slate-500'
+}
+
 function linescoreCell(v: number | null | undefined): string {
   if (v === null || v === undefined) return '-'
   if (typeof v === 'number' && Number.isNaN(v)) return '-'
@@ -351,6 +344,9 @@ function GameLinescoreSection({
 }) {
   const byNum = linescoreInningByNum(row.innings)
   const inningCols = linescoreInningColumnNums(byNum)
+  const isLiveLinescore = gameStatusEn(game.status) === 'Live'
+  const liveInning = isLiveLinescore ? row.live_current_inning : null
+  const liveTopHalf = isLiveLinescore ? row.live_is_top_half : null
 
   const pbpCacheRef = useRef<MlbPlayByPlayPlay[] | null>(null)
   const pbpInflightRef = useRef<Promise<MlbPlayByPlayPlay[] | null> | null>(null)
@@ -581,6 +577,12 @@ function GameLinescoreSection({
 
       <p className="text-xs text-slate-500">
         Hover for a quick preview. Click a scoring inning cell to pin the panel (then Esc, Close, or click outside the table).
+        {isLiveLinescore && liveInning != null ? (
+          <span className="mt-1 block text-amber-200/90">
+            Highlighted column: inning {liveInning}
+            {liveTopHalf === true ? ' · top of the inning (away batting)' : liveTopHalf === false ? ' · bottom (home batting)' : ''}.
+          </span>
+        ) : null}
       </p>
 
       <div ref={linescoreTableRef} className="overflow-x-auto rounded-xl border border-white/[0.1] bg-[#0f1117]">
@@ -589,7 +591,12 @@ function GameLinescoreSection({
             <tr className="border-b border-white/[0.08] bg-[#252b3d] text-xs font-semibold uppercase tracking-wide text-slate-400">
               <th className="sticky left-0 z-10 whitespace-nowrap bg-[#252b3d] px-3 py-3 text-left">Team</th>
               {inningCols.map(n => (
-                <th key={n} className="min-w-[2.25rem] px-2 py-3 text-center tabular-nums">
+                <th
+                  key={n}
+                  className={`min-w-[2.25rem] px-2 py-3 text-center tabular-nums ${
+                    liveInningColumnClass(n, liveInning, liveTopHalf, 'header') || 'text-slate-400'
+                  }`}
+                >
                   {n}
                 </th>
               ))}
@@ -607,10 +614,11 @@ function GameLinescoreSection({
                 const cell = byNum.get(n)
                 const runs = cell?.away ?? null
                 const interactive = runs != null && runs > 0
+                const liveCls = liveInningColumnClass(n, liveInning, liveTopHalf, 'away')
                 return (
                   <td
                     key={n}
-                    className={`px-2 py-2.5 text-center tabular-nums text-slate-300 ${interactive ? 'cursor-pointer underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
+                    className={`px-2 py-2.5 text-center tabular-nums ${liveCls || 'text-slate-300'} ${interactive ? 'cursor-pointer underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
                     onMouseEnter={e => interactive && handleInningCellEnter(e, n, true, runs, awayTeamLabel)}
                     onMouseLeave={hideInningPbpIfNotPinned}
                     onClick={e => interactive && handleInningCellClick(e, n, true, runs, awayTeamLabel)}
@@ -635,10 +643,11 @@ function GameLinescoreSection({
                 const cell = byNum.get(n)
                 const runs = cell?.home ?? null
                 const interactive = runs != null && runs > 0
+                const liveCls = liveInningColumnClass(n, liveInning, liveTopHalf, 'home')
                 return (
                   <td
                     key={n}
-                    className={`px-2 py-2.5 text-center tabular-nums text-slate-300 ${interactive ? 'cursor-pointer underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
+                    className={`px-2 py-2.5 text-center tabular-nums ${liveCls || 'text-slate-300'} ${interactive ? 'cursor-pointer underline decoration-dotted decoration-slate-500 underline-offset-2' : ''}`}
                     onMouseEnter={e => interactive && handleInningCellEnter(e, n, false, runs, homeTeamLabel)}
                     onMouseLeave={hideInningPbpIfNotPinned}
                     onClick={e => interactive && handleInningCellClick(e, n, false, runs, homeTeamLabel)}
@@ -893,6 +902,10 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
         setMlbNameByPlayerId(mlbNames)
         if (!linescoreRes.error && linescoreRes.data) {
           setLinescore(linescoreRes.data as GameLinescoreRow)
+        } else if (gameStatusEn(game.status) === 'Live') {
+          const liveRow = await fetchLiveLinescoreFromMlb(game)
+          if (cancelled) return
+          if (liveRow) setLinescore(liveRow)
         }
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load')
@@ -905,6 +918,22 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
       cancelled = true
     }
   }, [game])
+
+  /** Live games: DB linescores omit inning progress; fill highlight from MLB for column styling. */
+  useEffect(() => {
+    if (!linescore) return
+    if (gameStatusEn(game.status) !== 'Live') return
+    if (linescore.live_current_inning != null) return
+    let cancelled = false
+    void (async () => {
+      const hi = await fetchLiveLinescoreHighlightFromMlb(game.game_pk)
+      if (cancelled || !hi?.live_current_inning) return
+      setLinescore(prev => (prev && prev.game_pk === game.game_pk ? { ...prev, ...hi } : prev))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [game.game_pk, game.status, linescore])
 
   const nameByPlayerId = useMemo(() => {
     const m = new Map<number, string>()

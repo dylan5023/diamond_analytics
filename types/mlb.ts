@@ -69,6 +69,10 @@ export interface GameLinescoreRow {
   winner_name?: string | null
   loser_name?: string | null
   save_name?: string | null
+  /** MLB linescore: current inning while game is live (UI highlight) */
+  live_current_inning?: number | null
+  /** true = away batting (top), false = bottom, null = middle/end/unknown */
+  live_is_top_half?: boolean | null
 }
 
 export interface GameBoxscoreRow {
