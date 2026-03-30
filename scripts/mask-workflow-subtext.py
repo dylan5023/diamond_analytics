@@ -34,7 +34,7 @@ MASK_SPECS: dict[str, list[tuple[float, float, float, float]]] = {
 }
 
 # Light touch: strong values read like heavy censorship on thumbnails.
-BLUR_RADIUS = 2
+BLUR_RADIUS = 1
 MASK_FEATHER = 8
 DIM_OVERLAY_ALPHA = 10  # 0 = skip darken; was 28 (too heavy)
 
