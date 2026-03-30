@@ -3,7 +3,7 @@
 Blur horizontal bands where n8n HTTP nodes show method + URL under the title.
 
 Unmasked originals (if you keep them): assets/n8n-workflow-originals/
-Re-run after replacing PNGs in public/home-workflows/:
+Each run copies from assets/n8n-workflow-originals/ first (when present), then applies the mask — avoids stacking blur.
 
   python3 scripts/mask-workflow-subtext.py
 
@@ -12,27 +12,31 @@ Edit MASK_SPECS / BLUR_RADIUS / MASK_FEATHER to taste.
 
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
 WF_DIR = ROOT / "public" / "home-workflows"
+ORIGINALS_DIR = ROOT / "assets" / "n8n-workflow-originals"
 
-# Normalized rectangles: (left, top, right, bottom) in 0–1. Small strips = subtitle rows only.
+# Normalized rectangles: (left, top, right, bottom) in 0–1. Tight bands = subtitle row only.
 MASK_SPECS: dict[str, list[tuple[float, float, float, float]]] = {
-    "win-probability.png": [(0.0, 0.44, 1.0, 0.60)],
-    "gear-pipeline.png": [(0.0, 0.46, 1.0, 0.62)],
-    "top-news.png": [(0.0, 0.40, 1.0, 0.56), (0.0, 0.52, 1.0, 0.66)],
+    "win-probability.png": [(0.0, 0.48, 1.0, 0.57)],
+    "gear-pipeline.png": [(0.0, 0.50, 1.0, 0.59)],
+    "top-news.png": [(0.0, 0.44, 1.0, 0.53), (0.0, 0.56, 1.0, 0.64)],
     "site-chat.png": [
-        (0.0, 0.30, 1.0, 0.40),
-        (0.0, 0.48, 1.0, 0.58),
-        (0.0, 0.65, 1.0, 0.76),
+        (0.0, 0.33, 1.0, 0.39),
+        (0.0, 0.51, 1.0, 0.57),
+        (0.0, 0.68, 1.0, 0.74),
     ],
 }
 
-BLUR_RADIUS = 5
-MASK_FEATHER = 14
+# Light touch: strong values read like heavy censorship on thumbnails.
+BLUR_RADIUS = 2
+MASK_FEATHER = 8
+DIM_OVERLAY_ALPHA = 10  # 0 = skip darken; was 28 (too heavy)
 
 
 def build_soft_mask(size: tuple[int, int], rects_norm: list[tuple[float, float, float, float]]) -> Image.Image:
@@ -51,17 +55,20 @@ def mask_image(path: Path, rects_norm: list[tuple[float, float, float, float]]) 
     blurred = im.filter(ImageFilter.GaussianBlur(BLUR_RADIUS))
     mask = build_soft_mask(im.size, rects_norm)
     out = Image.composite(blurred, im, mask)
-    # Slight darken in masked zones so URLs don’t “shine through” after mild blur
-    dim = Image.new("RGBA", im.size, (10, 12, 18, 28))
-    out = Image.composite(dim, out, mask)
+    if DIM_OVERLAY_ALPHA > 0:
+        dim = Image.new("RGBA", im.size, (12, 14, 20, DIM_OVERLAY_ALPHA))
+        out = Image.composite(dim, out, mask)
     out.save(path, optimize=True)
 
 
 def main() -> None:
     for name, rects in MASK_SPECS.items():
         path = WF_DIR / name
-        if not path.is_file():
-            print("skip (missing):", path)
+        original = ORIGINALS_DIR / name
+        if original.is_file():
+            shutil.copy2(original, path)
+        elif not path.is_file():
+            print("skip (missing original and dest):", name)
             continue
         mask_image(path, rects)
         print("masked:", path.relative_to(ROOT))
