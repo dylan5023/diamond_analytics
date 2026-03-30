@@ -1,7 +1,9 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import Image from 'next/image'
+import { motion, AnimatePresence } from 'framer-motion'
 import { FadeIn, FadeInOnScroll } from '@/components/MotionWrapper'
 
 const features = [
@@ -81,7 +83,45 @@ const stats = [
   { label: 'Reviews Analyzed', value: '10K+', suffix: 'weekly' },
 ]
 
+const workflowShowcase = [
+  {
+    src: '/home-workflows/win-probability.png',
+    title: 'Live game intelligence',
+    listKicker: 'Live dashboard can',
+    listDetail: 'Sync scores, lines, and win probability from MLB on a schedule.',
+    blurb: 'Scheduled pulls and writes keep scores, lines, and win-probability views in sync with MLB.',
+    alt: 'n8n workflow screenshot: live game data and win probability pipeline',
+  },
+  {
+    src: '/home-workflows/site-chat.png',
+    title: 'Site assistant',
+    listKicker: 'On-site chat can',
+    listDetail: 'Answer visitors with an agent wired to memory and your vector store.',
+    blurb: 'Webhook, agent, memory, and vector store — RAG-style answers grounded in your content.',
+    alt: 'n8n workflow screenshot: chat agent with LLM and Supabase vector store',
+  },
+  {
+    src: '/home-workflows/gear-pipeline.png',
+    title: 'Gear recommendations',
+    listKicker: 'Gear pages can',
+    listDetail: 'Loop positions, call the model, parse output, and upsert picks into the API.',
+    blurb: 'Loop, model pass, parse, and upsert — position gear lists refresh without manual paste.',
+    alt: 'n8n workflow screenshot: AI gear recommendation pipeline',
+  },
+  {
+    src: '/home-workflows/top-news.png',
+    title: 'News digest',
+    listKicker: 'Top news can',
+    listDetail: 'Read sources in batches, chain an LLM, and write structured updates on a timer.',
+    blurb: 'Ingest, loop, LLM chain, and sheet updates — headlines land on a steady cadence.',
+    alt: 'n8n workflow screenshot: news aggregation and summarization',
+  },
+] as const
+
 export default function Home() {
+  const [workflowIndex, setWorkflowIndex] = useState(0)
+  const activeWorkflow = workflowShowcase[workflowIndex]
+
   return (
     <div className="relative">
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -100,9 +140,10 @@ export default function Home() {
               Baseball Intelligence,{' '}
               <span className="gradient-text">Automated</span>
             </h1>
-            <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-text-secondary">
-              Real-time MLB data, AI-generated analysis, and gear insights — 
-              all powered by automated pipelines that never sleep.
+            <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-text-secondary">
+              Real-time MLB data, AI-generated analysis, and gear insights — orchestrated through{' '}
+              <span className="text-text-primary">eight n8n automation pipelines</span> so scheduled jobs, API calls,
+              and model steps stay in sync around the clock.
             </p>
             <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
               <Link
@@ -145,6 +186,89 @@ export default function Home() {
             ))}
           </div>
         </FadeIn>
+      </section>
+
+      <section className="relative mx-auto max-w-7xl px-6 pb-20">
+        <FadeInOnScroll>
+          <h2 className="font-heading text-center text-3xl font-bold tracking-tight md:text-4xl">
+            Automation under the hood
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-text-secondary">
+            The site is wired as <span className="text-text-primary">eight n8n workflows</span> end to end. Here are four
+            of the live canvases — triggers, HTTP steps, AI nodes, and loops — so you can see how data moves without
+            opening the editor.
+          </p>
+        </FadeInOnScroll>
+
+        <FadeInOnScroll className="mx-auto mt-12 max-w-6xl">
+          <div className="flex flex-col gap-8 lg:flex-row lg:items-stretch lg:gap-10">
+            <nav
+              className="flex shrink-0 flex-col gap-1 lg:w-[min(100%,280px)] xl:w-[300px]"
+              aria-label="Automation workflow examples"
+            >
+              {workflowShowcase.map((item, i) => {
+                const active = i === workflowIndex
+                return (
+                  <button
+                    key={item.src}
+                    type="button"
+                    id={`workflow-tab-${i}`}
+                    aria-controls="workflow-panel"
+                    aria-pressed={active}
+                    onClick={() => setWorkflowIndex(i)}
+                    className={`rounded-xl border border-y border-r px-4 py-3.5 text-left transition-colors border-l-[3px] ${
+                      active
+                        ? 'border-border border-l-red-500 bg-white/[0.07]'
+                        : 'border-transparent border-l-transparent hover:bg-white/[0.04] hover:text-text-primary'
+                    }`}
+                  >
+                    <span
+                      className={`block font-heading text-sm font-bold ${
+                        active ? 'text-text-primary' : 'text-text-secondary'
+                      }`}
+                    >
+                      {item.listKicker}
+                    </span>
+                    <span className="mt-1 block text-xs leading-snug text-text-muted">{item.listDetail}</span>
+                  </button>
+                )
+              })}
+            </nav>
+
+            <div className="glass-card min-w-0 flex-1 overflow-hidden p-0" id="workflow-panel" role="region" aria-live="polite" aria-labelledby={`workflow-tab-${workflowIndex}`}>
+              <div className="relative aspect-[16/10] w-full overflow-hidden bg-[#0d1018] lg:aspect-[16/9] lg:max-h-[min(520px,58vh)]">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeWorkflow.src}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute inset-0 z-[1]"
+                  >
+                    <Image
+                      src={activeWorkflow.src}
+                      alt={activeWorkflow.alt}
+                      fill
+                      className="object-cover object-center"
+                      sizes="(max-width: 1024px) 100vw, 720px"
+                      priority={workflowIndex === 0}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+                {/* Stronger spotlight: brighter core, darker frame */}
+                <div
+                  className="pointer-events-none absolute inset-0 z-[2] bg-[radial-gradient(ellipse_72%_64%_at_50%_48%,rgba(255,255,255,0.11)_0%,rgba(255,255,255,0.02)_28%,transparent_40%,rgba(11,14,26,0.35)_58%,rgba(11,14,26,0.82)_78%,rgb(4,5,9)_100%)] shadow-[inset_0_0_140px_rgba(0,0,0,0.78)]"
+                  aria-hidden
+                />
+              </div>
+              <div className="border-t border-border px-4 py-3.5 sm:px-5">
+                <p className="font-heading text-sm font-semibold text-text-primary">{activeWorkflow.title}</p>
+                <p className="mt-1 text-xs leading-relaxed text-text-muted">{activeWorkflow.blurb}</p>
+              </div>
+            </div>
+          </div>
+        </FadeInOnScroll>
       </section>
 
       <section className="relative mx-auto max-w-7xl px-6 pb-32">

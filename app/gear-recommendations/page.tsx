@@ -512,8 +512,10 @@ export default function GearRecommendationsPage() {
         <div className="mb-10">
           <h1 className="font-heading text-4xl font-extrabold tracking-tight md:text-5xl">Gear Recommendations</h1>
           <p className="mt-3 max-w-2xl text-text-secondary">
-            Curated picks by position and gear category. Click a card for the full recommendation notes; open the retailer
-            only when you are ready.
+            For each position and gear category, we list{' '}
+            <span className="font-medium text-text-primary">up to five AI-ranked</span> picks — what our models surface first
+            so you can compare gloves, bats, cleats, and helmets without endless scrolling. Click a card for the full
+            recommendation notes; open the retailer only when you are ready.
           </p>
         </div>
       </FadeIn>
