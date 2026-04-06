@@ -9,9 +9,12 @@ interface Props {
   wide?: boolean
   /** Stacked on top of another modal */
   stacked?: boolean
+  /** 뒤로 가기 버튼 (이전 화면으로 돌아갈 때) */
+  onBack?: () => void
+  backLabel?: string
 }
 
-export default function MlbModal({ title, onClose, children, wide, stacked }: Props) {
+export default function MlbModal({ title, onClose, children, wide, stacked, onBack, backLabel = 'Back' }: Props) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -46,12 +49,27 @@ export default function MlbModal({ title, onClose, children, wide, stacked }: Pr
         role="presentation"
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/[0.1] px-6 py-5">
-          <h2
-            id="mlb-modal-title"
-            className="font-heading text-xl font-bold leading-snug tracking-tight text-white sm:text-2xl"
-          >
-            {title}
-          </h2>
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="shrink-0 rounded-xl p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white"
+                aria-label={backLabel}
+                title={backLabel}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 12H5M12 19l-7-7 7-7" />
+                </svg>
+              </button>
+            )}
+            <h2
+              id="mlb-modal-title"
+              className="font-heading text-xl font-bold leading-snug tracking-tight text-white sm:text-2xl"
+            >
+              {title}
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}

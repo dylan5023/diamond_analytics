@@ -421,6 +421,7 @@ function MLBPageInner() {
           playerId={selectedPlayerId}
           gamePk={selectedGame?.game_pk ?? null}
           onClose={() => setSelectedPlayerId(null)}
+          onBack={selectedGame ? () => setSelectedPlayerId(null) : undefined}
         />
       )}
     </div>

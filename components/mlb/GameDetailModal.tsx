@@ -336,11 +336,15 @@ function GameLinescoreSection({
   game,
   awayTeamLabel,
   homeTeamLabel,
+  rosters,
+  onPlayerClick,
 }: {
   row: GameLinescoreRow
   game: GameSnapshot
   awayTeamLabel: string
   homeTeamLabel: string
+  rosters: TeamRosterRow[]
+  onPlayerClick: (id: number) => void
 }) {
   const byNum = linescoreInningByNum(row.innings)
   const inningCols = linescoreInningColumnNums(byNum)
@@ -520,6 +524,30 @@ function GameLinescoreSection({
   const awaySp = game.away_pitcher?.trim() ?? ''
   const homeSp = game.home_pitcher?.trim() ?? ''
 
+  // 이름으로 roster에서 player_id 찾기
+  function findPlayerId(name: string): number | null {
+    if (!name) return null
+    const q = name.toLowerCase()
+    const match = rosters.find(r => r.full_name?.toLowerCase() === q)
+    return match?.player_id ?? null
+  }
+
+  // 클릭 가능한 선수 이름 버튼
+  function PitcherName({ name }: { name: string }) {
+    if (!name) return <span className="text-slate-500">-</span>
+    const pid = findPlayerId(name)
+    if (!pid) return <span>{name}</span>
+    return (
+      <button
+        type="button"
+        onClick={() => onPlayerClick(pid)}
+        className="font-medium text-[#facc15] underline decoration-dotted underline-offset-2 transition-colors hover:text-white"
+      >
+        {name}
+      </button>
+    )
+  }
+
   const tooltipPortal =
     typeof document !== 'undefined' &&
     pbpTooltip &&
@@ -673,16 +701,16 @@ function GameLinescoreSection({
         <ul className="space-y-2 text-sm text-slate-200">
           <li>
             <span className="mr-2 inline-block w-8 font-semibold text-slate-500">W</span>
-            {winner || '-'}
+            <PitcherName name={winner} />
           </li>
           <li>
             <span className="mr-2 inline-block w-8 font-semibold text-slate-500">L</span>
-            {loser || '-'}
+            <PitcherName name={loser} />
           </li>
           {save ? (
             <li>
               <span className="mr-2 inline-block w-8 font-semibold text-slate-500">SV</span>
-              {save}
+              <PitcherName name={save} />
             </li>
           ) : null}
         </ul>
@@ -694,12 +722,12 @@ function GameLinescoreSection({
           <li>
             <span className="mr-2 font-medium text-[#facc15]">{awayTeamLabel}</span>
             <span className="text-slate-400">·</span>
-            <span className="ml-2">{awaySp || '-'}</span>
+            <span className="ml-2"><PitcherName name={awaySp} /></span>
           </li>
           <li>
             <span className="mr-2 font-medium text-[#facc15]">{homeTeamLabel}</span>
             <span className="text-slate-400">·</span>
-            <span className="ml-2">{homeSp || '-'}</span>
+            <span className="ml-2"><PitcherName name={homeSp} /></span>
           </li>
         </ul>
       </div>
@@ -1141,6 +1169,8 @@ export default function GameDetailModal({ game, onClose, onPlayerClick }: Props)
               game={game}
               awayTeamLabel={game.away_team}
               homeTeamLabel={game.home_team}
+              rosters={rosters}
+              onPlayerClick={onPlayerClick}
             />
           )}
 
