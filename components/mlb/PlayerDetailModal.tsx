@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { useEffect, useState, useMemo } from 'react'
 import {
-  LineChart,
+  ComposedChart,
+  Bar,
   Line,
   XAxis,
   YAxis,
@@ -134,6 +135,9 @@ export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) 
         label: formatShortDate(g.game_date),
         hits: g.hits ?? 0,
         hr: g.home_runs ?? 0,
+        ab: g.at_bats ?? 0,
+        rbi: g.rbi ?? 0,
+        bb: g.walks ?? 0,
       }))
   }, [hittingBox2026])
 
@@ -146,6 +150,8 @@ export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) 
         label: formatShortDate(g.game_date),
         ip: typeof g.innings_pitched === 'number' ? g.innings_pitched : Number(g.innings_pitched) || 0,
         k: g.strikeouts ?? 0,
+        er: g.earned_runs ?? 0,
+        bb: g.walks ?? 0,
       }))
   }, [pitchingBox2026])
 
@@ -363,60 +369,113 @@ export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) 
           {(hitting2025 || hitting2026Stats || hittingBox2026.length > 0) && (
             <section>
               <h3 className="font-heading text-lg font-semibold text-white">2026 · Game trends (hitting)</h3>
-              <p className="mt-1 text-sm text-slate-400">Hits and home runs by game (up to last 10).</p>
+              <p className="mt-1 text-sm text-slate-400">Last 10 games — bars = hits, red line = home runs.</p>
               {showHittingAccumulatingMsg && (
                 <p className="mt-4 rounded-xl border border-white/[0.1] bg-[#0f1117] px-4 py-4 text-sm leading-relaxed text-slate-300">
                   No 2026 game rows yet — numbers will fill in as the season progresses.
                 </p>
               )}
               {showHittingChart && (
-                <div className="mt-5 h-72 w-full min-w-0 rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartHitting} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.6} />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
-                        tickLine={false}
-                        axisLine={{ stroke: '#475569' }}
-                      />
-                      <YAxis
-                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
-                        tickLine={false}
-                        axisLine={{ stroke: '#475569' }}
-                        width={36}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#1e293b',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          borderRadius: '12px',
-                          fontSize: '14px',
-                          padding: '12px 14px',
-                        }}
-                        labelStyle={{ color: '#e2e8f0', marginBottom: 6 }}
-                      />
-                      <Legend wrapperStyle={{ paddingTop: 16, fontSize: 14, color: '#e2e8f0' }} />
-                      <Line
-                        type="monotone"
-                        dataKey="hits"
-                        stroke="#facc15"
-                        name="Hits"
-                        strokeWidth={2.5}
-                        dot={{ r: 4, strokeWidth: 0 }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="hr"
-                        stroke="#94a3b8"
-                        name="HR"
-                        strokeWidth={2.5}
-                        dot={{ r: 4, strokeWidth: 0 }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                <div className="mt-5 space-y-4">
+                  <div className="h-64 w-full min-w-0 rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={chartHitting} margin={{ top: 8, right: 36, left: 0, bottom: 4 }}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.5} />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fill: '#94a3b8', fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={{ stroke: '#334155' }}
+                        />
+                        <YAxis
+                          yAxisId="hits"
+                          tick={{ fill: '#94a3b8', fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={24}
+                          allowDecimals={false}
+                        />
+                        <YAxis
+                          yAxisId="hr"
+                          orientation="right"
+                          tick={{ fill: '#f87171', fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={24}
+                          allowDecimals={false}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#1e293b',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '12px',
+                            fontSize: '13px',
+                            padding: '10px 14px',
+                          }}
+                          labelStyle={{ color: '#e2e8f0', marginBottom: 6, fontWeight: 600 }}
+                          formatter={(value: number, name: string) => {
+                            if (name === 'Hits') return [`${value} H`, 'Hits']
+                            if (name === 'HR') return [`${value} HR`, 'Home Runs']
+                            if (name === 'RBI') return [`${value}`, 'RBI']
+                            if (name === 'BB') return [`${value}`, 'Walks']
+                            return [value, name]
+                          }}
+                        />
+                        <Legend
+                          wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#94a3b8' }}
+                          formatter={(value) => <span style={{ color: '#cbd5e1' }}>{value}</span>}
+                        />
+                        <Bar
+                          yAxisId="hits"
+                          dataKey="hits"
+                          name="Hits"
+                          fill="#facc15"
+                          radius={[4, 4, 0, 0]}
+                          opacity={0.85}
+                          maxBarSize={40}
+                        />
+                        <Line
+                          yAxisId="hr"
+                          type="monotone"
+                          dataKey="hr"
+                          name="HR"
+                          stroke="#f87171"
+                          strokeWidth={2}
+                          dot={{ r: 5, fill: '#f87171', stroke: '#1e293b', strokeWidth: 2 }}
+                          activeDot={{ r: 7 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="overflow-hidden rounded-xl border border-white/[0.1] bg-[#0f1117]">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/[0.08]">
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Date</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">AB</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[#facc15]/70">H</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-red-400/70">HR</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">RBI</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">BB</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">AVG</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {hittingBox2026.slice(0, 10).map(g => (
+                          <tr key={g.game_pk} className="border-b border-white/[0.04] last:border-0 transition-colors hover:bg-white/[0.03]">
+                            <td className="px-3 py-2.5 text-slate-300">{formatShortDate(g.game_date)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-slate-400">{g.at_bats ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums font-bold text-[#facc15]">{g.hits ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-red-400">{g.home_runs ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-slate-300">{g.rbi ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-slate-300">{g.walks ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-slate-400">{g.avg != null ? g.avg.toFixed(3) : '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </section>
@@ -425,60 +484,110 @@ export default function PlayerDetailModal({ playerId, gamePk, onClose }: Props) 
           {(pitching2025 || pitching2026Stats || pitchingBox2026.length > 0) && (
             <section>
               <h3 className="font-heading text-lg font-semibold text-white">2026 · Game trends (pitching)</h3>
-              <p className="mt-1 text-sm text-slate-400">Innings pitched and strikeouts by game (up to last 10).</p>
+              <p className="mt-1 text-sm text-slate-400">Last 10 starts — bars = strikeouts, yellow line = innings pitched.</p>
               {showPitchingAccumulatingMsg && (
                 <p className="mt-4 rounded-xl border border-white/[0.1] bg-[#0f1117] px-4 py-4 text-sm leading-relaxed text-slate-300">
                   No 2026 game rows yet — numbers will fill in as the season progresses.
                 </p>
               )}
               {showPitchingChart && (
-                <div className="mt-5 h-72 w-full min-w-0 rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartPitching} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                      <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.6} />
-                      <XAxis
-                        dataKey="label"
-                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
-                        tickLine={false}
-                        axisLine={{ stroke: '#475569' }}
-                      />
-                      <YAxis
-                        tick={{ fill: '#cbd5e1', fontSize: 12 }}
-                        tickLine={false}
-                        axisLine={{ stroke: '#475569' }}
-                        width={36}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#1e293b',
-                          border: '1px solid rgba(255,255,255,0.12)',
-                          borderRadius: '12px',
-                          fontSize: '14px',
-                          padding: '12px 14px',
-                        }}
-                        labelStyle={{ color: '#e2e8f0', marginBottom: 6 }}
-                      />
-                      <Legend wrapperStyle={{ paddingTop: 16, fontSize: 14, color: '#e2e8f0' }} />
-                      <Line
-                        type="monotone"
-                        dataKey="ip"
-                        stroke="#facc15"
-                        name="IP"
-                        strokeWidth={2.5}
-                        dot={{ r: 4, strokeWidth: 0 }}
-                        activeDot={{ r: 6 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="k"
-                        stroke="#94a3b8"
-                        name="Strikeouts"
-                        strokeWidth={2.5}
-                        dot={{ r: 4, strokeWidth: 0 }}
-                        activeDot={{ r: 6 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+                <div className="mt-5 space-y-4">
+                  <div className="h-64 w-full min-w-0 rounded-xl border border-white/[0.1] bg-[#0f1117] p-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart data={chartPitching} margin={{ top: 8, right: 36, left: 0, bottom: 4 }}>
+                        <CartesianGrid stroke="#334155" strokeDasharray="3 3" opacity={0.5} />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fill: '#94a3b8', fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={{ stroke: '#334155' }}
+                        />
+                        <YAxis
+                          yAxisId="k"
+                          tick={{ fill: '#94a3b8', fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={24}
+                          allowDecimals={false}
+                        />
+                        <YAxis
+                          yAxisId="ip"
+                          orientation="right"
+                          tick={{ fill: '#facc15', fontSize: 11 }}
+                          tickLine={false}
+                          axisLine={false}
+                          width={24}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#1e293b',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '12px',
+                            fontSize: '13px',
+                            padding: '10px 14px',
+                          }}
+                          labelStyle={{ color: '#e2e8f0', marginBottom: 6, fontWeight: 600 }}
+                          formatter={(value: number, name: string) => {
+                            if (name === 'K') return [`${value}`, 'Strikeouts']
+                            if (name === 'IP') return [`${value}`, 'Innings Pitched']
+                            if (name === 'ER') return [`${value}`, 'Earned Runs']
+                            if (name === 'BB') return [`${value}`, 'Walks']
+                            return [value, name]
+                          }}
+                        />
+                        <Legend
+                          wrapperStyle={{ paddingTop: 12, fontSize: 12, color: '#94a3b8' }}
+                          formatter={(value) => <span style={{ color: '#cbd5e1' }}>{value}</span>}
+                        />
+                        <Bar
+                          yAxisId="k"
+                          dataKey="k"
+                          name="K"
+                          fill="#818cf8"
+                          radius={[4, 4, 0, 0]}
+                          opacity={0.85}
+                          maxBarSize={40}
+                        />
+                        <Line
+                          yAxisId="ip"
+                          type="monotone"
+                          dataKey="ip"
+                          name="IP"
+                          stroke="#facc15"
+                          strokeWidth={2}
+                          dot={{ r: 5, fill: '#facc15', stroke: '#1e293b', strokeWidth: 2 }}
+                          activeDot={{ r: 7 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  <div className="overflow-hidden rounded-xl border border-white/[0.1] bg-[#0f1117]">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-white/[0.08]">
+                          <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Date</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-[#facc15]/70">IP</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-indigo-400/70">K</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-red-400/70">ER</th>
+                          <th className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">BB</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pitchingBox2026.slice(0, 10).map(g => (
+                          <tr key={g.game_pk} className="border-b border-white/[0.04] last:border-0 transition-colors hover:bg-white/[0.03]">
+                            <td className="px-3 py-2.5 text-slate-300">{formatShortDate(g.game_date)}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums font-bold text-[#facc15]">
+                              {g.innings_pitched != null ? Number(g.innings_pitched).toFixed(1) : '—'}
+                            </td>
+                            <td className="px-3 py-2.5 text-right tabular-nums font-bold text-indigo-400">{g.strikeouts ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-red-400">{g.earned_runs ?? '—'}</td>
+                            <td className="px-3 py-2.5 text-right tabular-nums text-slate-300">{g.walks ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </section>
