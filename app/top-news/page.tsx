@@ -152,7 +152,10 @@ export default function TopNewsPage() {
               Top News
             </h1>
             <p className="mt-3 max-w-lg text-text-secondary">
-              The latest MLB headlines, AI-scored by information density, trend relevance, and analytical utility.
+              The latest MLB headlines, AI-scored by information density, trend relevance, and analytical utility. Sourced from ESPN, MLB.com, and major baseball outlets — summarized and ranked by AI.
+            </p>
+            <p className="mt-2 text-xs text-text-muted">
+              Articles are available for the last 5 days only.
             </p>
           </div>
 

@@ -6,10 +6,12 @@ const USE_KV = !!process.env.KV_REST_API_URL
 const NEWS_DIR = join(process.cwd(), 'data', 'top-news')
 
 export async function GET() {
+  const MAX_DAYS = 5
+
   if (USE_KV) {
     const { kv } = await import('@vercel/kv')
     const dates = (await kv.get<string[]>('top_news_dates')) ?? []
-    return NextResponse.json(dates)
+    return NextResponse.json(dates.slice(0, MAX_DAYS))
   }
 
   if (!existsSync(NEWS_DIR)) {
@@ -23,5 +25,5 @@ export async function GET() {
     .sort()
     .reverse()
 
-  return NextResponse.json(dates)
+  return NextResponse.json(dates.slice(0, MAX_DAYS))
 }
