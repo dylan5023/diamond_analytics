@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: 'MLB Stats Dashboard | Diamond Analytics',
     description:
       'Real-time MLB player leaderboards and win probability predictions — AVG, HR, RBI, OPS, ERA, WHIP and more.',
-    url: 'https://diamond-analytics.vercel.app/dashboard',
+    url: 'https://alog-diamond-analytics.vercel.app/dashboard',
   },
   twitter: {
     title: 'MLB Stats Dashboard | Diamond Analytics',

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: 'MLB Live Scores & Win Probability | Diamond Analytics',
     description:
       'Track every MLB game in real time — live scores, win probability predictions, inning-by-inning linescores, and player stats.',
-    url: 'https://diamond-analytics.vercel.app/mlb',
+    url: 'https://alog-diamond-analytics.vercel.app/mlb',
   },
   twitter: {
     title: 'MLB Live Scores & Win Probability | Diamond Analytics',

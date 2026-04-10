@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: 'Baseball Gear Recommendations by Position | Diamond Analytics',
     description:
       'AI-ranked gloves, bats, cleats, and helmets for every fielding position — with ratings and retailer links.',
-    url: 'https://diamond-analytics.vercel.app/gear-recommendations',
+    url: 'https://alog-diamond-analytics.vercel.app/gear-recommendations',
   },
   twitter: {
     title: 'Baseball Gear Recommendations by Position | Diamond Analytics',

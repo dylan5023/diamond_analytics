@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: 'MLB Top News — AI-Curated Headlines | Diamond Analytics',
     description:
       'The most important MLB stories, ranked by AI across information density, trend relevance, and analytical utility. Updated every 6 hours.',
-    url: 'https://diamond-analytics.vercel.app/top-news',
+    url: 'https://alog-diamond-analytics.vercel.app/top-news',
   },
   twitter: {
     title: 'MLB Top News — AI-Curated Headlines | Diamond Analytics',

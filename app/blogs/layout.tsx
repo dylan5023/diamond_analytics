@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: 'Baseball Blog — AI-Powered Analysis | Diamond Analytics',
     description:
       'Deep-dive baseball posts generated from YouTube fan sentiment and real MLB data.',
-    url: 'https://diamond-analytics.vercel.app/blogs',
+    url: 'https://alog-diamond-analytics.vercel.app/blogs',
   },
   twitter: {
     title: 'Baseball Blog — AI-Powered Analysis | Diamond Analytics',

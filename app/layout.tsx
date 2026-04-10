@@ -21,7 +21,7 @@ const barlow = Barlow_Condensed({
   display: 'swap',
 })
 
-const BASE_URL = 'https://diamond-analytics.vercel.app'
+const BASE_URL = 'https://alog-diamond-analytics.vercel.app'
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
