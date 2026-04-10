@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { IBM_Plex_Sans, Barlow_Condensed } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { GoogleAnalytics } from '@next/third-parties/google'
 import Navbar from '@/components/Navbar'
 import ChatButton from '@/components/ChatButton'
 import './globals.css'
@@ -49,6 +50,7 @@ export default function RootLayout({
         </main>
         <ChatButton />
         <Analytics />
+        <GoogleAnalytics gaId="G-7HC2FG0LB0" />
         <footer className="border-t border-[#3a3a3a] bg-[#2a2a2a]">
           <div className="mx-auto w-full px-6 py-6 lg:px-10 xl:px-14">
             <div className="flex flex-col items-center justify-between gap-6 md:flex-row">

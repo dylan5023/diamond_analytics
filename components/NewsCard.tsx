@@ -1,5 +1,6 @@
 'use client'
 
+import { sendGAEvent } from '@next/third-parties/google'
 import type { NewsArticle } from '@/types'
 import { formatDate } from '@/lib/utils'
 
@@ -26,7 +27,10 @@ export default function NewsCard({ article, onClick, scoreRank }: Props) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        sendGAEvent('event', 'news_click', { article_title: article.title, article_rank: article.rank })
+        onClick?.()
+      }}
       className="group block w-full text-left"
     >
       <article

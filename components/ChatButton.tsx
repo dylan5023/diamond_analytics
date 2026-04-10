@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { sendGAEvent } from '@next/third-parties/google'
 import { cn } from '@/lib/utils'
 
 type ChatRole = 'user' | 'assistant'
@@ -274,7 +275,10 @@ export default function ChatButton() {
       e.preventDefault()
       return
     }
-    setOpen(v => !v)
+    setOpen(v => {
+      if (!v) sendGAEvent('event', 'chatbot_open', { source: 'fab_button' })
+      return !v
+    })
   }
 
   const scrollToBottom = useCallback(() => {

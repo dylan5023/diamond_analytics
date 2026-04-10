@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense, startTransition, useCallback, useEffect, useMemo, useState } from 'react'
+import { sendGAEvent } from '@next/third-parties/google'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 import type { GameSnapshot } from '@/types'
@@ -307,7 +308,7 @@ function MLBPageInner() {
                   <StaggerContainer className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 md:gap-8">
                     {liveGamesFiltered.map(game => (
                       <StaggerItem key={game.game_pk}>
-                        <LiveGameCard game={game} onOpen={() => setSelectedGame(game)} />
+                        <LiveGameCard game={game} onOpen={() => { sendGAEvent('event', 'tab_click', { tab_name: 'live_score', game: `${game.away_team}_vs_${game.home_team}` }); setSelectedGame(game) }} />
                       </StaggerItem>
                     ))}
                   </StaggerContainer>
@@ -329,7 +330,7 @@ function MLBPageInner() {
                   <StaggerContainer className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 md:gap-8">
                     {scheduledGamesFiltered.map(game => (
                       <StaggerItem key={game.game_pk}>
-                        <ScheduledGameCard game={game} onOpen={() => setSelectedGame(game)} />
+                        <ScheduledGameCard game={game} onOpen={() => { sendGAEvent('event', 'tab_click', { tab_name: 'scheduled_game', game: `${game.away_team}_vs_${game.home_team}` }); setSelectedGame(game) }} />
                       </StaggerItem>
                     ))}
                   </StaggerContainer>
@@ -378,7 +379,7 @@ function MLBPageInner() {
                   <StaggerContainer className="mb-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 md:gap-8">
                     {finalGamesForDateFiltered.map(game => (
                       <StaggerItem key={game.game_pk}>
-                        <FinalGameCard game={game} onOpen={() => setSelectedGame(game)} />
+                        <FinalGameCard game={game} onOpen={() => { sendGAEvent('event', 'tab_click', { tab_name: 'final_game', game: `${game.away_team}_vs_${game.home_team}` }); setSelectedGame(game) }} />
                       </StaggerItem>
                     ))}
                   </StaggerContainer>

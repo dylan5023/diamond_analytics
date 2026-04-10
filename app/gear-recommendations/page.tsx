@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { sendGAEvent } from '@next/third-parties/google'
 import useSWR from 'swr'
 import Image from 'next/image'
 import type { PositionGearRecommendationRow, RecommendedGearProduct } from '@/types'
@@ -528,7 +529,10 @@ export default function GearRecommendationsPage() {
               <button
                 key={tab.value}
                 type="button"
-                onClick={() => setPosition(tab.value)}
+                onClick={() => {
+                  sendGAEvent('event', 'tab_click', { tab_name: `gear_position_${tab.value}` })
+                  setPosition(tab.value)
+                }}
                 className={`rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
                   active
                     ? 'bg-accent/15 text-accent ring-1 ring-accent/35'
@@ -618,7 +622,10 @@ export default function GearRecommendationsPage() {
                         key={`${row.id}-${product.product_name}-${i}`}
                         product={product}
                         gearCategory={row.gear_category}
-                        onOpen={() => setDetail({ product, gearCategory: row.gear_category })}
+                        onOpen={() => {
+                          sendGAEvent('event', 'gear_click', { item_name: product.product_name, gear_category: row.gear_category, position })
+                          setDetail({ product, gearCategory: row.gear_category })
+                        }}
                       />
                     ))}
                   </div>
