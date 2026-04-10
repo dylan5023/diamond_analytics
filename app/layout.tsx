@@ -21,12 +21,50 @@ const barlow = Barlow_Condensed({
   display: 'swap',
 })
 
+const BASE_URL = 'https://diamond-analytics.vercel.app'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(BASE_URL),
   title: {
-    default: 'Diamond Analytics — Baseball Data Intelligence',
+    default: 'Diamond Analytics — MLB Live Scores, Win Probability & AI News',
     template: '%s | Diamond Analytics',
   },
-  description: 'Real-time MLB analytics, AI-powered blog posts, top news, player dashboards, and gear insights — all in one place.',
+  description:
+    'Real-time MLB live scores, win probability predictions, AI-curated news, player stat leaderboards, and gear recommendations — all in one place.',
+  keywords: [
+    'MLB live scores',
+    'baseball win probability',
+    'MLB analytics',
+    'AI baseball news',
+    'real-time baseball stats',
+    'MLB dashboard',
+    'baseball data',
+    'player leaderboard',
+  ],
+  authors: [{ name: 'Dylan Kang' }],
+  creator: 'Dylan Kang',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: BASE_URL,
+    siteName: 'Diamond Analytics',
+    title: 'Diamond Analytics — MLB Live Scores, Win Probability & AI News',
+    description:
+      'Real-time MLB live scores, win probability predictions, AI-curated news, and player stat leaderboards.',
+    images: [{ url: '/icon-512.png', width: 512, height: 512, alt: 'Diamond Analytics' }],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Diamond Analytics — MLB Live Scores, Win Probability & AI News',
+    description:
+      'Real-time MLB live scores, win probability predictions, AI-curated news, and player stat leaderboards.',
+    images: ['/icon-512.png'],
+  },
   icons: {
     icon: [
       { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
