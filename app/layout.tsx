@@ -43,6 +43,9 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: 'Dylan Kang' }],
   creator: 'Dylan Kang',
+  verification: {
+    google: 'AldiaYJY68n8Wn3DRy-ivVWNtdeK9qK7k4rXaGA-lwg',
+  },
   robots: {
     index: true,
     follow: true,
