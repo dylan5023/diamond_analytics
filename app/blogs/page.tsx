@@ -1,21 +1,59 @@
 'use client'
 
+import { useState } from 'react'
 import useSWR from 'swr'
 import type { BlogPost } from '@/types'
 import { fetcher } from '@/lib/utils'
 import BlogCard from '@/components/BlogCard'
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/MotionWrapper'
 
+function formatMonthLabel(ym: string): string {
+  const [y, m] = ym.split('-')
+  const date = new Date(Number(y), Number(m) - 1, 1)
+  return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+}
+
 export default function BlogsPage() {
-  const { data: posts, error, isLoading } = useSWR<BlogPost[]>('/api/blogs', fetcher)
+  const { data: months } = useSWR<string[]>('/api/blogs?months', fetcher)
+
+  const currentMonth = new Date().toISOString().slice(0, 7)
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+
+  const activeMonth = selectedMonth ?? (months?.[0] ?? currentMonth)
+
+  const { data: posts, error, isLoading } = useSWR<BlogPost[]>(
+    `/api/blogs?month=${activeMonth}`,
+    fetcher
+  )
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-12">
       <FadeIn>
         <div className="mb-12">
-          <h1 className="font-heading text-4xl font-extrabold tracking-tight md:text-5xl">
-            Blog
-          </h1>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <h1 className="font-heading text-4xl font-extrabold tracking-tight md:text-5xl">
+              Blog
+            </h1>
+            {months && months.length > 0 && (
+              <div className="relative shrink-0">
+                <select
+                  value={activeMonth}
+                  onChange={e => setSelectedMonth(e.target.value)}
+                  className="appearance-none rounded-lg border border-white/10 bg-surface px-4 py-2 pr-8 text-sm font-semibold text-text-primary transition-colors hover:border-accent/40 focus:border-accent focus:outline-none"
+                >
+                  {months.map(m => (
+                    <option key={m} value={m}>{formatMonthLabel(m)}</option>
+                  ))}
+                </select>
+                <svg
+                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted"
+                  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </div>
+            )}
+          </div>
           <p className="mt-3 max-w-2xl text-text-secondary">
             AI-assisted articles and pipeline-driven notes from baseball data and YouTube
             discourse — sentiment, trends, and deeper cuts you can skim or save for later.

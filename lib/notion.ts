@@ -101,8 +101,19 @@ function extractImageUrl(prop: any): string {
   return ''
 }
 
-export async function getPublishedBlogPosts(): Promise<BlogPost[]> {
-  if (USE_MOCK) return mockBlogPosts
+/** YYYY-MM → { on_or_after, before } date range */
+function monthToDateRange(month: string): { start: string; end: string } | null {
+  if (!/^\d{4}-\d{2}$/.test(month)) return null
+  const [y, m] = month.split('-').map(Number)
+  const start = `${month}-01`
+  const nextMonth = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, '0')}-01`
+  return { start, end: nextMonth }
+}
+
+export async function getAvailableMonths(): Promise<string[]> {
+  if (USE_MOCK) {
+    return [...new Set(mockBlogPosts.map(p => p.publishedAt.slice(0, 7)))].sort().reverse()
+  }
 
   const response = await notionFetch(
     `/databases/${process.env.NOTION_BLOG_DATABASE_ID}/query`,
@@ -113,18 +124,62 @@ export async function getPublishedBlogPosts(): Promise<BlogPost[]> {
   )
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const months = response.results.map((page: any) => {
+    const date: string = page.properties['Published Date']?.date?.start ?? ''
+    return date.slice(0, 7)
+  }).filter(Boolean) as string[]
+
+  return [...new Set(months)].sort().reverse()
+}
+
+export async function getPublishedBlogPosts(options?: {
+  month?: string
+  includeContent?: boolean
+}): Promise<BlogPost[]> {
+  const includeContent = options?.includeContent ?? false
+
+  if (USE_MOCK) {
+    const posts = options?.month
+      ? mockBlogPosts.filter(p => p.publishedAt.startsWith(options.month!))
+      : mockBlogPosts
+    return posts.map(p => ({ ...p, contents: includeContent ? p.contents : '' }))
+  }
+
+  const filters: unknown[] = [
+    { property: 'Published', checkbox: { equals: true } },
+  ]
+
+  if (options?.month) {
+    const range = monthToDateRange(options.month)
+    if (range) {
+      filters.push({ property: 'Published Date', date: { on_or_after: range.start } })
+      filters.push({ property: 'Published Date', date: { before: range.end } })
+    }
+  }
+
+  const response = await notionFetch(
+    `/databases/${process.env.NOTION_BLOG_DATABASE_ID}/query`,
+    {
+      filter: filters.length === 1 ? filters[0] : { and: filters },
+      sorts: [{ property: 'Published Date', direction: 'descending' }],
+    }
+  )
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const posts = await Promise.all(response.results.map(async (page: any) => {
     const props = page.properties
 
     const rawImageUrl = extractImageUrl(props['Files'])
     const imageUrl = rawImageUrl.replace(/^http:\/\//, 'https://')
-    const contentUrl = extractPropertyValue(props['Content'])
 
     let contents = ''
-    if (contentUrl && contentUrl.includes('docs.google.com')) {
-      contents = await fetchSheetContent(contentUrl)
-    } else {
-      contents = contentUrl
+    if (includeContent) {
+      const contentUrl = extractPropertyValue(props['Content'])
+      if (contentUrl && contentUrl.includes('docs.google.com')) {
+        contents = await fetchSheetContent(contentUrl)
+      } else {
+        contents = contentUrl
+      }
     }
 
     return {
@@ -146,6 +201,6 @@ export async function getPublishedBlogPosts(): Promise<BlogPost[]> {
 export async function getBlogPostBySlug(slug: string): Promise<BlogPost | null> {
   if (USE_MOCK) return mockBlogPosts.find(p => p.slug === slug) ?? null
 
-  const posts = await getPublishedBlogPosts()
+  const posts = await getPublishedBlogPosts({ includeContent: true })
   return posts.find(p => p.slug === slug) ?? null
 }
