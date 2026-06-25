@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import useSWR from 'swr'
 import type { BlogPost } from '@/types'
 import { fetcher } from '@/lib/utils'
@@ -11,6 +11,62 @@ function formatMonthLabel(ym: string): string {
   const [y, m] = ym.split('-')
   const date = new Date(Number(y), Number(m) - 1, 1)
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' })
+}
+
+function MonthDropdown({
+  months,
+  value,
+  onChange,
+}: {
+  months: string[]
+  value: string
+  onChange: (v: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onOutside)
+    return () => document.removeEventListener('mousedown', onOutside)
+  }, [])
+
+  return (
+    <div ref={ref} className="relative shrink-0">
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className="flex min-w-[140px] items-center justify-between gap-2 rounded-lg border border-white/10 bg-surface px-4 py-2 text-sm font-semibold text-text-primary transition-colors hover:border-accent/40 focus:border-accent focus:outline-none"
+      >
+        <span>{formatMonthLabel(value)}</span>
+        <svg
+          className={`shrink-0 text-text-muted transition-transform ${open ? 'rotate-180' : ''}`}
+          width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+        >
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+
+      {open && (
+        <ul className="absolute left-0 top-full z-50 mt-1 min-w-full overflow-hidden rounded-lg border border-white/10 bg-[#1a1f2e] py-1 shadow-xl">
+          {months.map(m => (
+            <li key={m}>
+              <button
+                type="button"
+                onClick={() => { onChange(m); setOpen(false) }}
+                className={`w-full px-4 py-2 text-left text-sm transition-colors hover:bg-white/5 ${m === value ? 'font-semibold text-accent' : 'text-text-primary'}`}
+              >
+                {formatMonthLabel(m)}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
 }
 
 export default function BlogsPage() {
@@ -35,23 +91,11 @@ export default function BlogsPage() {
               Blog
             </h1>
             {months && months.length > 0 && (
-              <div className="relative shrink-0">
-                <select
-                  value={activeMonth}
-                  onChange={e => setSelectedMonth(e.target.value)}
-                  className="appearance-none rounded-lg border border-white/10 bg-surface px-4 py-2 pr-8 text-sm font-semibold text-text-primary transition-colors hover:border-accent/40 focus:border-accent focus:outline-none"
-                >
-                  {months.map(m => (
-                    <option key={m} value={m}>{formatMonthLabel(m)}</option>
-                  ))}
-                </select>
-                <svg
-                  className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted"
-                  width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                >
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </div>
+              <MonthDropdown
+                months={months}
+                value={activeMonth}
+                onChange={setSelectedMonth}
+              />
             )}
           </div>
           <p className="mt-3 max-w-2xl text-text-secondary">
@@ -110,37 +154,46 @@ export default function BlogsPage() {
         </div>
       </FadeIn>
 
-      {isLoading && (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="glass-card animate-pulse">
-              <div className="h-40 bg-surface" />
-              <div className="p-5 space-y-3">
-                <div className="h-3 w-20 rounded bg-surface" />
-                <div className="h-5 w-3/4 rounded bg-surface" />
-                <div className="h-4 w-full rounded bg-surface" />
-                <div className="h-4 w-2/3 rounded bg-surface" />
+      {/* 최소 높이 고정으로 월 전환 시 레이아웃 점프 방지 */}
+      <div className="min-h-[480px]">
+        {isLoading && (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="glass-card animate-pulse">
+                <div className="h-40 bg-surface" />
+                <div className="p-5 space-y-3">
+                  <div className="h-3 w-20 rounded bg-surface" />
+                  <div className="h-5 w-3/4 rounded bg-surface" />
+                  <div className="h-4 w-full rounded bg-surface" />
+                  <div className="h-4 w-2/3 rounded bg-surface" />
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
 
-      {error && (
-        <div className="glass-card p-8 text-center">
-          <p className="text-text-secondary">Failed to load blog posts. Please try again later.</p>
-        </div>
-      )}
+        {error && (
+          <div className="glass-card p-8 text-center">
+            <p className="text-text-secondary">Failed to load blog posts. Please try again later.</p>
+          </div>
+        )}
 
-      {posts && (
-        <StaggerContainer className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {posts.map((post, i) => (
-            <StaggerItem key={post.id}>
-              <BlogCard post={post} index={i} />
-            </StaggerItem>
-          ))}
-        </StaggerContainer>
-      )}
+        {!isLoading && posts && posts.length === 0 && (
+          <div className="glass-card p-8 text-center">
+            <p className="text-text-secondary">No posts for this month.</p>
+          </div>
+        )}
+
+        {!isLoading && posts && posts.length > 0 && (
+          <StaggerContainer className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {posts.map((post, i) => (
+              <StaggerItem key={post.id}>
+                <BlogCard post={post} index={i} />
+              </StaggerItem>
+            ))}
+          </StaggerContainer>
+        )}
+      </div>
     </div>
   )
 }
