@@ -101,6 +101,15 @@ function extractImageUrl(prop: any): string {
   return ''
 }
 
+/** Notion page.cover → 썸네일 URL 추출 */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function extractCoverUrl(cover: any): string {
+  if (!cover) return ''
+  if (cover.type === 'external') return cover.external?.url ?? ''
+  if (cover.type === 'file') return cover.file?.url ?? ''
+  return ''
+}
+
 /** YYYY-MM → { on_or_after, before } date range */
 function monthToDateRange(month: string): { start: string; end: string } | null {
   if (!/^\d{4}-\d{2}$/.test(month)) return null
@@ -169,7 +178,9 @@ export async function getPublishedBlogPosts(options?: {
   const posts = await Promise.all(response.results.map(async (page: any) => {
     const props = page.properties
 
-    const rawImageUrl = extractImageUrl(props['Files'])
+    const rawImageUrl =
+      extractImageUrl(props['Files']) ||   // Files 프로퍼티 우선
+      extractCoverUrl(page.cover)          // 없으면 페이지 커버 이미지
     const imageUrl = rawImageUrl.replace(/^http:\/\//, 'https://')
 
     let contents = ''

@@ -25,6 +25,7 @@ export async function GET(request: Request) {
 
   const posts = await getPublishedBlogPosts({ month: month ?? undefined, includeContent: false })
   return NextResponse.json(posts, {
-    headers: { 'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400' },
+    // Notion 내부 파일 URL은 ~1시간 후 만료 → 45분 캐시
+    headers: { 'Cache-Control': 'public, s-maxage=2700, stale-while-revalidate=3600' },
   })
 }
