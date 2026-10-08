@@ -164,7 +164,7 @@ export async function POST(request: Request) {
     const { kv } = await import('@vercel/kv')
     const existing = (await kv.get<Record<string, unknown>[]>(`top_news_${bucketDate}`)) ?? []
     const merged = mergeAndRank(existing, articles)
-    await kv.set(`top_news_${bucketDate}`, merged, { ex: 60 * 60 * 24 * 30 })
+    await kv.set(`top_news_${bucketDate}`, merged, { ex: 60 * 60 * 24 * 90 }) // 90일 보관
     const existingDates = (await kv.get<string[]>('top_news_dates')) ?? []
     const allDates = [...new Set([...existingDates, bucketDate])].sort().reverse()
     await kv.set('top_news_dates', allDates)

@@ -125,8 +125,14 @@ export default function TopNewsPage() {
 
   const activeDate = selectedDate ?? (dates && dates.length > 0 ? dates[0] : null)
 
+  // dates가 로드됐지만 비어있으면 fetch 자체를 하지 않음 (null → SWR skip)
+  const datesLoaded = dates !== undefined
+  const swrKey = datesLoaded
+    ? (activeDate ? `/api/topNews?date=${activeDate}` : null)
+    : null
+
   const { data: articles, error, isLoading } = useSWR<NewsArticle[]>(
-    activeDate ? `/api/topNews?date=${activeDate}` : '/api/topNews',
+    swrKey,
     fetcher,
     { refreshInterval: 1000 * 60 * 10 }
   )
@@ -214,6 +220,21 @@ export default function TopNewsPage() {
         </div>
       </FadeIn>
 
+      {/* dates가 로드됐는데 비어있으면 → 준비 중 안내 */}
+      {datesLoaded && !activeDate && (
+        <div className="glass-card p-12 text-center">
+          <svg className="mx-auto mb-4 text-text-muted" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          <p className="text-lg font-semibold text-text-primary">No recent articles</p>
+          <p className="mt-2 text-sm text-text-secondary">
+            New articles will appear here when the pipeline runs.<br />
+            Check back soon!
+          </p>
+        </div>
+      )}
+
       {isLoading && (
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
@@ -232,7 +253,13 @@ export default function TopNewsPage() {
 
       {error && (
         <div className="glass-card p-8 text-center">
-          <p className="text-text-secondary">Failed to load news. Please try again later.</p>
+          <svg className="mx-auto mb-4 text-text-muted" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <p className="font-semibold text-text-primary">No articles for this date</p>
+          <p className="mt-1 text-sm text-text-secondary">Data may have expired. Try selecting another date.</p>
         </div>
       )}
 

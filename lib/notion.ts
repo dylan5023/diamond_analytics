@@ -8,6 +8,9 @@ const NOTION_API = 'https://api.notion.com/v1'
 async function notionFetch(path: string, body?: Record<string, unknown>) {
   const res = await fetch(`${NOTION_API}${path}`, {
     method: body ? 'POST' : 'GET',
+    // Next.js App Router는 fetch를 기본 캐싱 — Notion 데이터는 항상 fresh하게 요청하고
+    // 캐싱은 API route의 Cache-Control 헤더(CDN)에서만 처리
+    cache: 'no-store',
     headers: {
       'Authorization': `Bearer ${process.env.NOTION_API_KEY}`,
       'Notion-Version': '2022-06-28',
