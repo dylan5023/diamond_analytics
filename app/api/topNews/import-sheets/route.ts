@@ -49,9 +49,9 @@ function convertContentsToHtml(raw: string): string {
 
   // 유니코드 포함 단어 문자 (Suárez, Arráez 등 처리)
   const wordChar = '[\\w\\u00C0-\\u024F\'\'\\-.]'
-  // "이름[url]" → <a href>이름</a>  (최대 4단어 앞까지 앵커로 포함)
+  // "이름[url]" 또는 "이름 [url]" → <a href>이름</a>  (space 0~1개 허용)
   const namedLink = new RegExp(
-    `((?:${wordChar}+\\s+){0,3}${wordChar}+)\\[((https?:\\/\\/|\\/)[^\\]\\n]+)\\]`,
+    `((?:${wordChar}+\\s+){0,3}${wordChar}+)\\s?\\[((https?:\\/\\/|\\/)[^\\]\\n]+)\\]`,
     'g',
   )
 

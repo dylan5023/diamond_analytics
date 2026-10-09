@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import type { NewsArticle } from '@/types'
 import {
@@ -11,6 +11,40 @@ import {
 import { fetcher, formatDate } from '@/lib/utils'
 import NewsCard from '@/components/NewsCard'
 import { FadeIn, StaggerContainer, StaggerItem } from '@/components/MotionWrapper'
+
+/**
+ * ESPN 스크래퍼 형식 변환: "anchor[url]" 또는 "anchor [url]" → HTML 링크
+ * 이미 변환된 HTML도 안전하게 처리 (추가 [url] 패턴만 변환)
+ */
+function processArticleHtml(raw: string): string {
+  if (!raw) return ''
+
+  // "word(s)[url]" 또는 "word(s) [url]" → <a> 태그 (space 0~1개 허용)
+  let html = raw.replace(
+    /((?:[\w\u00C0-\u024F''.\-]+\s+){0,3}[\w\u00C0-\u024F''.\-]+)\s?\[((https?:\/\/|\/)[^\]\n]+)\]/g,
+    (_, anchor, url) => {
+      const href = url.startsWith('/') ? `https://www.espn.com${url}` : url
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent underline underline-offset-2">${anchor.trim()}</a>`
+    },
+  )
+
+  // 남은 standalone [url]
+  html = html.replace(/\[((https?:\/\/|\/)[^\]\n]+)\]/g, (_, url) => {
+    const href = url.startsWith('/') ? `https://www.espn.com${url}` : url
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent text-xs">↗</a>`
+  })
+
+  // 아직 <p> 태그 없으면 단락 처리
+  if (!/<p[\s>]/i.test(html)) {
+    html = html
+      .split(/\n\n+/)
+      .map(p => `<p>${p.trim().replace(/\n/g, ' ')}</p>`)
+      .filter(p => p !== '<p></p>')
+      .join('\n')
+  }
+
+  return html
+}
 
 function ScoreBar({ label, score, max = 5 }: { label: string; score: number; max?: number }) {
   const pct = (score / max) * 100
@@ -348,7 +382,7 @@ export default function TopNewsPage() {
 
             <div
               className="news-content mt-6 text-text-secondary leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: selected.html }}
+              dangerouslySetInnerHTML={{ __html: processArticleHtml(selected.html) }}
             />
 
             <div className="mt-8 rounded-xl border border-accent/20 bg-navy-card p-6">
