@@ -40,6 +40,42 @@ function cellStr(cell: GvizCell): string {
   return ''
 }
 
+/**
+ * ESPN 스크래퍼 형식 변환: "anchor text[url]" → HTML 링크
+ * 예) "Eugenio Suárez[https://espn.com/...]" → <a href="...">Eugenio Suárez</a>
+ */
+function convertContentsToHtml(raw: string): string {
+  if (!raw) return ''
+
+  // 유니코드 포함 단어 문자 (Suárez, Arráez 등 처리)
+  const wordChar = '[\\w\\u00C0-\\u024F\'\'\\-.]'
+  // "이름[url]" → <a href>이름</a>  (최대 4단어 앞까지 앵커로 포함)
+  const namedLink = new RegExp(
+    `((?:${wordChar}+\\s+){0,3}${wordChar}+)\\[((https?:\\/\\/|\\/)[^\\]\\n]+)\\]`,
+    'g',
+  )
+
+  let html = raw
+    .replace(namedLink, (_, anchor, url) => {
+      const href = url.startsWith('/') ? `https://www.espn.com${url}` : url
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent underline underline-offset-2">${anchor.trim()}</a>`
+    })
+    // 앞에 앵커 없이 남은 [url]
+    .replace(/\[((https?:\/\/|\/)[^\]\n]+)\]/g, (_, url) => {
+      const href = url.startsWith('/') ? `https://www.espn.com${url}` : url
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-accent">↗</a>`
+    })
+
+  // 빈 줄 기준으로 단락 나누기
+  html = html
+    .split(/\n\n+/)
+    .map(p => `<p>${p.trim().replace(/\n/g, ' ')}</p>`)
+    .filter(p => p !== '<p></p>')
+    .join('\n')
+
+  return html
+}
+
 /** gviz JSONP 응답 → 파싱 */
 function parseGviz(text: string): GvizCell[][] {
   // JSONP wrapper 제거: /*O_o*/\ngoogle.visualization.Query.setResponse({...});
@@ -124,7 +160,7 @@ export async function POST(request: Request) {
       title,
       url,
       date,
-      html: cellStr(row[COL.contents]),
+      html: convertContentsToHtml(cellStr(row[COL.contents])),
       image_thumbnail: cellStr(row[COL.image_thumbnail]),
       category: 'MLB',
       information_density: Number(cellStr(row[COL.info_density])) || 0,
