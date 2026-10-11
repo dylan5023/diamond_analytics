@@ -10,6 +10,7 @@ import DashboardLeaderboardTables from '@/components/DashboardLeaderboardTables'
 import Season2026LeaderboardTables from '@/components/Season2026LeaderboardTables'
 import PlayerDetailModal from '@/components/mlb/PlayerDetailModal'
 import PlayerSearchResults from '@/components/PlayerSearchResults'
+import BaseballSpinner from '@/components/BaseballSpinner'
 import { FadeInOnScroll } from '@/components/MotionWrapper'
 
 type SearchResponse = { results: PlayerSearchResult[] }
@@ -267,7 +268,9 @@ function DashboardPageInner() {
                   </div>
                 )}
                 {loading2026 && !data2026 ? (
-                  <Skeleton2026 />
+                  <div className="flex items-center justify-center py-24">
+                    <BaseballSpinner size={72} label="Loading 2026 season data…" />
+                  </div>
                 ) : data2026 ? (
                   <Season2026LeaderboardTables
                     hitters={data2026.hitters}

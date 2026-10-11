@@ -29,7 +29,7 @@ function mean(arr: number[]): number {
   return arr.reduce((a, b) => a + b, 0) / arr.length
 }
 
-// ─── 전체 행 페이지네이션 fetch ──────────────────────────────────────────────
+// ─── 전체 행 페이지네이션 fetch (병렬로 처리해 속도 향상) ─────────────────────
 
 async function fetchAll(statGroup: 'hitting' | 'pitching') {
   const cols =
@@ -37,25 +37,33 @@ async function fetchAll(statGroup: 'hitting' | 'pitching') {
       ? 'player_id, game_pk, at_bats, hits, home_runs, rbi, stolen_bases, walks'
       : 'player_id, game_pk, innings_pitched, earned_runs, strikeouts, walks'
 
-  const rows: Record<string, unknown>[] = []
-  let from = 0
+  // 1단계: 총 row 수 파악
+  const { count, error: countErr } = await supabase
+    .from('game_boxscores')
+    .select('*', { count: 'exact', head: true })
+    .eq('stat_group', statGroup)
+    .gte('game_date', SEASON_2026_START)
 
-  for (;;) {
-    const { data, error } = await supabase
+  if (countErr) throw new Error(`Count error: ${countErr.message}`)
+  if (!count || count === 0) return []
+
+  // 2단계: 모든 페이지를 병렬로 fetch
+  const totalPages = Math.ceil(count / PAGE_SIZE)
+  const pagePromises = Array.from({ length: totalPages }, (_, i) =>
+    supabase
       .from('game_boxscores')
       .select(cols)
       .eq('stat_group', statGroup)
       .gte('game_date', SEASON_2026_START)
-      .range(from, from + PAGE_SIZE - 1)
+      .range(i * PAGE_SIZE, (i + 1) * PAGE_SIZE - 1)
+      .then(({ data, error }) => {
+        if (error) throw new Error(`Page ${i} error: ${error.message}`)
+        return (data ?? []) as unknown as Record<string, unknown>[]
+      }),
+  )
 
-    if (error) throw new Error(`Supabase error: ${error.message}`)
-    if (!data?.length) break
-    rows.push(...(data as unknown as Record<string, unknown>[]))
-    if (data.length < PAGE_SIZE) break
-    from += PAGE_SIZE
-  }
-
-  return rows
+  const pages = await Promise.all(pagePromises)
+  return pages.flat()
 }
 
 // ─── 로스터 맵 ───────────────────────────────────────────────────────────────
