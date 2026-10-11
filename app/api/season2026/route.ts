@@ -50,7 +50,7 @@ async function fetchAll(statGroup: 'hitting' | 'pitching') {
 
     if (error) throw new Error(`Supabase error: ${error.message}`)
     if (!data?.length) break
-    rows.push(...(data as Record<string, unknown>[]))
+    rows.push(...(data as unknown as Record<string, unknown>[]))
     if (data.length < PAGE_SIZE) break
     from += PAGE_SIZE
   }
