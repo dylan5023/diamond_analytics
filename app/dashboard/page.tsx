@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import useSWR from 'swr'
 import type { DashboardData, PlayerSearchResult } from '@/types'
 import { loadDashboardDataFromSupabase, searchPlayersSupabase } from '@/lib/dashboard-supabase'
-import { fetchSeasonHitters, fetchSeasonPitchers, type HitterRow, type PitcherRow } from '@/lib/season-stats'
+import { type HitterRow, type PitcherRow } from '@/lib/season-stats'
 import DashboardLeaderboardTables from '@/components/DashboardLeaderboardTables'
 import Season2026LeaderboardTables from '@/components/Season2026LeaderboardTables'
 import PlayerDetailModal from '@/components/mlb/PlayerDetailModal'
@@ -142,13 +142,10 @@ function DashboardPageInner() {
     { refreshInterval: 1000 * 60 }
   )
 
-  // ── 2026 data (game_boxscores aggregated) — only fetched when tab is active ──
+  // ── 2026 data — API 라우트에서 서버 집계 후 캐싱된 결과 fetch ──────────────
   const { data: data2026, isLoading: loading2026, error: error2026 } = useSWR<Season2026Data>(
     selectedSeason === 2026 ? SEASON_2026_SWR_KEY : null,
-    async () => {
-      const [hitters, pitchers] = await Promise.all([fetchSeasonHitters(5), fetchSeasonPitchers(3)])
-      return { hitters, pitchers }
-    },
+    () => fetch('/api/season2026').then(r => { if (!r.ok) throw new Error('Failed'); return r.json() }),
     { refreshInterval: 1000 * 60 * 5 }
   )
 
