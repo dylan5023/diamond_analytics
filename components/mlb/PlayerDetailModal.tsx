@@ -176,10 +176,31 @@ export default function PlayerDetailModal({ playerId, gamePk, initialSeason = 20
   return (
     <MlbModal title={title} onClose={onClose} wide stacked onBack={onBack} backLabel="Back to game">
       {loading && (
-        <div className="space-y-4">
-          <div className="h-28 animate-pulse rounded-xl bg-white/10" />
-          <div className="h-44 animate-pulse rounded-xl bg-white/10" />
-          <div className="h-64 animate-pulse rounded-xl bg-white/10" />
+        <div className="flex flex-col items-center justify-center gap-5 py-20">
+          {/* 야구공 스피너 */}
+          <div className="relative h-16 w-16 animate-spin" style={{ animationDuration: '1.2s' }}>
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-full w-full drop-shadow-lg">
+              {/* 공 몸체 */}
+              <circle cx="32" cy="32" r="30" fill="white" stroke="#e2e8f0" strokeWidth="1.5" />
+              {/* 왼쪽 실밥 곡선 */}
+              <path
+                d="M20 14 C16 20, 14 26, 15 32 C14 38, 16 44, 20 50"
+                stroke="#e53e3e" strokeWidth="2.2" strokeLinecap="round" fill="none"
+              />
+              {/* 왼쪽 실밥 가로선들 */}
+              <path d="M20 14 L17 16 M19 19 L16 20 M17 25 L14 25 M15 31 L12 31 M17 37 L14 37 M19 43 L16 44 M20 48 L17 50"
+                stroke="#e53e3e" strokeWidth="1.5" strokeLinecap="round" />
+              {/* 오른쪽 실밥 곡선 */}
+              <path
+                d="M44 14 C48 20, 50 26, 49 32 C50 38, 48 44, 44 50"
+                stroke="#e53e3e" strokeWidth="2.2" strokeLinecap="round" fill="none"
+              />
+              {/* 오른쪽 실밥 가로선들 */}
+              <path d="M44 14 L47 16 M45 19 L48 20 M47 25 L50 25 M49 31 L52 31 M47 37 L50 37 M45 43 L48 44 M44 48 L47 50"
+                stroke="#e53e3e" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-slate-400">Loading player data…</p>
         </div>
       )}
       {error && <p className="text-sm text-red-400">{error}</p>}
