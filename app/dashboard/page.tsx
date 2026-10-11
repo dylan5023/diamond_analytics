@@ -17,7 +17,6 @@ type SearchResponse = { results: PlayerSearchResult[] }
 type Season2026Data = { hitters: HitterRow[]; pitchers: PitcherRow[] }
 
 const DASHBOARD_SWR_KEY = 'dashboard:supabase'
-const SEASON_2026_SWR_KEY = 'dashboard:2026'
 
 function leaderboardsAllEmpty(data: DashboardData): boolean {
   const lb = data.leaderboards
@@ -143,11 +142,11 @@ function DashboardPageInner() {
     { refreshInterval: 1000 * 60 }
   )
 
-  // ── 2026 data — API 라우트에서 서버 집계 후 캐싱된 결과 fetch ──────────────
+  // ── 2026 data — 항상 백그라운드에서 prefetch (탭 클릭 전에도 준비)
   const { data: data2026, isLoading: loading2026, error: error2026 } = useSWR<Season2026Data>(
-    selectedSeason === 2026 ? SEASON_2026_SWR_KEY : null,
+    '/api/season2026',
     () => fetch('/api/season2026').then(r => { if (!r.ok) throw new Error('Failed'); return r.json() }),
-    { refreshInterval: 1000 * 60 * 5 }
+    { refreshInterval: 1000 * 60 * 5, revalidateOnFocus: false }
   )
 
   // ── Player search ────────────────────────────────────────────────────────────

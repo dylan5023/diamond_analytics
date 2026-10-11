@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo, type ReactNode } from 'react'
+import useSWR from 'swr'
 import {
   ComposedChart, Bar, Line,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -14,8 +15,6 @@ import {
   type LeaguePitchingAverages,
 } from '@/lib/mlb-league-avg'
 import {
-  fetchLeague2026HittingAvg,
-  fetchLeague2026PitchingAvg,
   type League2026HittingAvg,
   type League2026PitchingAvg,
 } from '@/lib/season-stats'
@@ -60,11 +59,20 @@ export default function PlayerDetailModal({ playerId, gamePk, initialSeason = 20
   const [pitching2025, setPitching2025] = useState<PlayerSeasonStatRow | null>(null)
   const [leagueHit2025, setLeagueHit2025] = useState<LeagueHittingAverages | null>(null)
   const [leaguePit2025, setLeaguePit2025] = useState<LeaguePitchingAverages | null>(null)
-  const [leagueHit2026, setLeagueHit2026] = useState<League2026HittingAvg | null>(null)
-  const [leaguePit2026, setLeaguePit2026] = useState<League2026PitchingAvg | null>(null)
   // 2025 bar/radar 차트용
   const [chartProfile, setChartProfile] = useState<PlayerChartProfile | null>(null)
   const [chartLeague, setChartLeague] = useState<SeasonLeagueAverages | null>(null)
+
+  // 2026 리그 평균 — 대시보드와 SWR 캐시 공유 (재fetch 없음)
+  const { data: season2026Cache } = useSWR<{
+    leagueAvg?: { hitting: League2026HittingAvg; pitching: League2026PitchingAvg }
+  }>('/api/season2026', (url: string) => fetch(url).then(r => r.json()), {
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 5 * 60 * 1000,
+  })
+  const leagueHit2026 = season2026Cache?.leagueAvg?.hitting ?? null
+  const leaguePit2026 = season2026Cache?.leagueAvg?.pitching ?? null
 
   useEffect(() => {
     let cancelled = false
@@ -74,7 +82,7 @@ export default function PlayerDetailModal({ playerId, gamePk, initialSeason = 20
 
     async function load() {
       try {
-        const [rosterRes, statsRes, boxRes, lgHit25, lgPit25, lgHit26, lgPit26, chartProf, chartLg] = await Promise.all([
+        const [rosterRes, statsRes, boxRes, lgHit25, lgPit25, chartProf, chartLg] = await Promise.all([
           supabase.from('team_rosters').select('*').eq('player_id', playerId).limit(1).maybeSingle(),
           supabase.from('player_stats').select('*').eq('player_id', playerId).eq('season', 2025),
           supabase
@@ -84,8 +92,6 @@ export default function PlayerDetailModal({ playerId, gamePk, initialSeason = 20
             .order('game_date', { ascending: false }).limit(500),
           getLeagueHittingAverages(supabase, 2025).catch(() => null),
           getLeaguePitchingAverages(supabase, 2025).catch(() => null),
-          fetchLeague2026HittingAvg(5).catch(() => null),
-          fetchLeague2026PitchingAvg(3).catch(() => null),
           fetchPlayerStatsForCharts(playerId).catch(() => null),
           fetchSeasonLeagueAverages(2025).catch(() => null),
         ])
@@ -108,8 +114,6 @@ export default function PlayerDetailModal({ playerId, gamePk, initialSeason = 20
         setPitching2025(p25)
         setLeagueHit2025(lgHit25)
         setLeaguePit2025(lgPit25)
-        setLeagueHit2026(lgHit26)
-        setLeaguePit2026(lgPit26)
         setChartProfile(chartProf ?? null)
         setChartLeague(chartLg ?? null)
       } catch (e) {
